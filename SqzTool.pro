@@ -1,0 +1,138 @@
+
+# ProjectRoot/
+# ├─ App.pro                 # 工程总配置
+# ├─ Core/                   # 【全局底层底座｜最优先】
+# │  ├─ Core.pri
+# │  ├─ UiBase/              # BaseWidget / BaseDialog / BaseMainWindow
+# │  ├─ BaseService.h        # 服务统一基类(QObject)
+# │  ├─ MessageBus/          # 消息总线
+# │  ├─ UniversalFactory/    # 你的万能工厂(全局唯一对象管理器)
+# │  └─ Translator/          # 多语言翻译框架
+# │
+# ├─ Network/                # 通信层：TCP/UDP/串口服务
+# ├─ Protocol/               # 协议解析、组包、校验
+# ├─ DataManager/            # 全局数据缓存、数据模型
+# ├─ Database/               # SQLite数据库服务
+# ├─ Config/                 # 本地配置、全局参数
+# ├─ Log/                    # Logger日志、日志服务
+# ├─ Utils/                  # 静态工具类(无实例、不注册工厂)
+# ├─ Style/                  # QSS主题、全局样式
+# ├─ Widget/           # 全局通用UI控件(复用型)
+# └─ Business/               # 业务窗口、业务逻辑
+
+QT       += core gui network sql xml concurrent
+
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+CONFIG += c++17
+
+#DEFINES += DEBUG
+##   RELEASE 表示当前是发布环境，会产生动态库文件
+##   DEBUG   表示当前是调试环境，会生成可执行文件
+#if(contains(DEFINES, RELEASE)){
+#    TEMPLATE = lib
+#    CONFIG += plugin
+#    DEFINES += SqzTool
+#}
+
+#if(contains(DEFINES, DEBUG)){
+#    TEMPLATE = app
+#}
+
+VERSION = 1.0.0
+DEFINES += MODULE_PREFIX=\\\"SqzTool\\\"
+CONFIG(debug,debug|release){
+    #debug专属配置
+    TEMPLATE = app
+    TARGET = SqzToolApp
+    DEFINES += DEBUG_MODE
+    message("Debug模式：生成可执行程序")
+}else{
+    #release 专属配置
+    DEFINES += RELEASE_MODE
+    TEMPLATE = lib
+    TARGET = SqzTool
+    DESTDIR = $$PWD/SqzLib
+    message("Release模式：生成库文件,在当前目录SqzLib文件夹下")
+}
+# You can make your code fail to compile if it uses deprecated APIs.
+# In order to do so, uncomment the following line.
+#DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
+
+#LIBS += -lasound
+
+INCLUDEPATH +=  $$PWD/Log \
+                $$PWD/Core \
+                $$PWD/Database \
+                $$PWD/Utils \
+                $$PWD/Widget \
+                $$PWD/Config \
+                $$PWD/NetWork \
+                $$PWD/Business
+
+include(Business/Business.pri)
+include(Config/Config.pri)
+include(Core/Core.pri)
+include(Widget/Widget.pri)
+include(Database/Database.pri)
+include(DataManager/DataManager.pri)
+include(Log/Log.pri)
+include(Style/Style.pri)
+include(Utils/Utils.pri)
+include(NetWork/NetWork.pri)
+
+SOURCES += \
+    TestWidget.cpp \
+    main.cpp \
+    sqzudptest.cpp
+
+HEADERS += \
+    TestWidget.h \
+    sqzudptest.h
+
+FORMS += \
+    TestWidget.ui \
+    sqzudptest.ui
+
+# Default rules for deployment.
+qnx: target.path = /tmp/$${TARGET}/bin
+else: unix:!android: target.path = /opt/$${TARGET}/bin
+!isEmpty(target.path): INSTALLS += target
+
+win32 {
+#    QMAKE_CXXFLAGS += /utf-8
+    LIBS += -ldbghelp
+
+}
+
+unix {
+    QMAKE_CXXFLAGS += -Wall -Wextra
+    QMAKE_LFLAGS += -rdynamic
+
+    QMAKE_POST_LINK += $$PWD/MakeRun.sh $$VERSION $$PWD
+    # 可选：强制UTF-8
+    # QMAKE_CXXFLAGS += -finput-charset=UTF-8 -fexec-charset=UTF-8
+}
+
+RESOURCES +=
+
+
+DISTFILES += \
+    FlexData.md \
+    SqzData/config/app_config.ini \
+    SqzData/translator/English.json \
+    SqzData/translator/简体中文.json \
+    config.xml
+#复制配置文件到输出目录
+
+    config.files += $$PWD/SqzData/config/app_config.ini
+    config.path = $$OUT_PWD/SqzData/config
+    COPIES += config
+
+    translators.files += $$PWD/SqzData/translator/简体中文.json \
+                          $$PWD/SqzData/translator/English.json
+    translators.path = $$OUT_PWD/SqzData/translator
+    COPIES += translators
+
+
+

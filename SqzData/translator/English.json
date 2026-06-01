@@ -1,0 +1,10 @@
+{
+    "MainWindow": {
+        "主界面": "Main Window",
+        "打开弹窗": "Open Dialog"
+    },
+    "TestDialog": {
+        "测试弹窗": "Test Dialog",
+        "语言同步测试": "Language Sync Test"
+    }
+}
