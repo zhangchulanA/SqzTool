@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QMainWindow>
+#include <QSpinBox>
 #include <QTextEdit>
 #include "SqzTranslator.h"
 #include "SqzFactory.h"
@@ -14,6 +15,7 @@
 #include "sqzudptest.h"
 #include "FlexData.h"
 #include "ProtocolSchema.h"
+#include "TableBuilder.h"
 void initGlobalBusiness(){
     //    Logger::instance().init(GlobalInstance->pathLogs(),GlobalInstance->g_logFileName,GlobalInstance->g_maxLogSize,GlobalInstance->g_enableConsole,true);
     //    loginfo << "初始化打印日志功能完成";
@@ -43,10 +45,75 @@ int main(int argc, char *argv[])
 
     QApplication a(argc, argv);
     SqzLog::instance().init("./log","chatlog");
-    initGlobalBusiness();
-    FacIn.CreateWidget("TestWidget");
+//    initGlobalBusiness();
+//    FacIn.CreateWidget("TestWidget");
 
-    FacIn.PrintRegClass();
+
+    // 1. 注册列模板
+       TableBuilder::registerColumnTemplate("ID", [](TableBuilder& builder, const QString& title) {
+           builder.addColumn(title)
+                  .setWidth(80)
+                  .setAlignment(Qt::AlignCenter)
+                  .setEditable(false)
+                  .setSortable(true);
+       });
+       TableBuilder::registerColumnTemplate("Name", [](TableBuilder& builder, const QString& title) {
+           builder.addColumn(title)
+                  .setStretch(1)
+                  .setEditable(true);
+       });
+
+       // 2. 创建 Builder 并配置
+       TableBuilder builder;
+       builder.addColumnFromTemplate("ID", "工号")
+              .addColumnFromTemplate("Name", "姓名")
+              .addColumn("年龄")
+                   .setWidth(100)
+                   .setAlignment(Qt::AlignCenter)
+                   .setEditor([](QWidget* p) { return new QSpinBox(p); })
+              .addColumn("工资")
+                   .setWidth(120)
+                   .setAlignment(Qt::AlignRight)
+                   .setEditable(true);
+
+       // 3. 样式与主题
+       builder.applyTheme(TableStyle::DarkTheme)
+              .setRowHeight(30)
+              .setAlternatingRowColors(true);
+
+       // 4. 数据绑定
+       QList<QList<QVariant>> data = {
+           {1001, "张三", 28, 8500},
+           {1002, "李四", 32, 9200},
+           {1003, "王五", 26, 7800}
+       };
+       builder.setDataSource(data);
+
+       // 5. 启用全局过滤
+       builder.enableGlobalFilter(false);
+       builder.setFilterPlaceholder("输入关键字过滤...");
+
+       // 6. 启用列拖拽排序
+//       builder.setDragDropEnabled(false, true);
+
+       // 7. 构建表格
+       QTableView* table = builder.build();
+
+       // 8. 动态列管理演示（插入新列）
+       builder.insertColumn(2, "部门");
+
+       // 9. 导出/导入列配置
+       QJsonObject cfg = builder.exportColumnConfig();
+       qDebug() << "Exported config:" << cfg;
+
+       // 10. 显示窗口
+       QMainWindow win;
+       QWidget* central = new QWidget;
+       QVBoxLayout* layout = new QVBoxLayout(central);
+       layout->addWidget(table);
+       win.setCentralWidget(central);
+       win.resize(800, 400);
+       win.show();
 
 #if 0
     // 定义一个简单的协议：温度（16位有符号，系数0.01，偏移0），湿度（16位无符号，系数0.1）
