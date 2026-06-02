@@ -80,8 +80,8 @@ public:
     void init(const QString& logDir,
               const QString& filePrefix,
               qint64 maxSizeMB     = 10,
-              bool   enableConsole = true,
-              bool   enableFile    = true,
+              bool   enableConsole = false,
+              bool   enableFile    = false,
               int    keepDays      = 7);
 
     /**

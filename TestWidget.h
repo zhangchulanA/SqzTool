@@ -2,7 +2,7 @@
 #define TESTWIDGET_H
 
 #include <QWidget>
-
+#include "UdpServer.h"
 namespace Ui {
 class TestWidget;
 }
@@ -17,9 +17,11 @@ public:
     Q_INVOKABLE void M_InitTrUi();
 private slots:
     void on_pushButton_clicked();
-
+     void ReceiveUdpData(const QVariantList& list);
 private:
     Ui::TestWidget *ui;
+
+    UdpServer * m_udp = nullptr;
 };
 
 #endif // TESTWIDGET_H

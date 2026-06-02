@@ -48,7 +48,6 @@ void SqzFactory::RegisterNoArg(const QString& ClassName,
                                bool isQObject)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
-    logdebug <<fullname;
     QWriteLocker locker(&GetFactoryLock());
     if (!m_noArgCreator.contains(fullname))
     {

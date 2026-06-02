@@ -11,14 +11,7 @@ class UdpServer : public QObject
 {
     Q_OBJECT
 
-
 public:
-    enum Send{
-        WuRenJi,
-        WuRenChe,
-        SouJiuLian,
-    };
-
     UdpServer();
     ~UdpServer();
 //******************************************************单播
@@ -28,11 +21,11 @@ public:
     //设置接收方ip和port
     void SendSendInfo(QString ip,quint16 port);
 //设置本地ip和端口
-    void SetIpAndPort(QString ip,quint16 port);
+    bool SetIpAndPort(QString ip,quint16 port);
 //ip设为任意地址，设置端口
-    void SetAnyHostPort(quint16 port);
+    bool SetAnyHostPort();
 //ip设为本地循环 ，设置端口
-    void SetLocalHostPort(quint16 port);
+    bool SetLocalHostPort(quint16 port);
     //单播发送消息
     void SendMessage(const QString& data);
     void SendMessage(const char* data,int len);
@@ -43,12 +36,9 @@ public:
 
 //******************************************************组播
     //组播设置224.0.2.0
-    void SetMulticastIpAndPort(QString groupIp,int groupPort = 5678);
+    bool SetMulticastIpAndPort(QString groupIp,int groupPort = 5678);
     //组播发送消息
     void SendMulticastMessage(const char* data, int len);
-
-    //
-
     //接收消息
     void ReceiveData();
     void ReceiveGroupData();
@@ -60,9 +50,6 @@ public:
 public slots:
     void onReadyRead();
     void groupRecvData();
-
-    //监听网络是否连接成功
-    void stateChangedSlot(QAbstractSocket::SocketState state);
 signals:
     void DataReceived(const QByteArray& data);
     void DataReceivedAndIP(const QHostAddress address ,const int port, const QByteArray& data);
@@ -84,63 +71,6 @@ private:
     int _groupPort;//组播端口
 
 
-    //监听网络是否连接成功
-    QTimer* reconnectTimer;
-    QTimer* networkCheckTimer;
-    bool isConnected;
-
 
 };
 #endif // UDPSERVER_H
-
-class DanLiUdp : public QObject
-{
-    Q_OBJECT
-
-public:
-
-    struct SendInfo{
-        QString ip;
-        quint16 port;
-        QString cardID;
-    };
-
-    static DanLiUdp& instance();
-
-    DanLiUdp(const DanLiUdp&) = delete;
-
-    DanLiUdp& operator=(const DanLiUdp&) = delete;
-
-    static void destory();
-
-    UdpServer* GetUdpServer();
-
-    bool GetCardID(QString name, QString &BDCard);
-
-    bool GetCardName(QString BDCard,QString& name);
-
-    bool GetCardIP(QString ip, QString& name);
-//    bool GetCardIDFromSheBei()
-
-    void SendMessageToBD(const QString& data);
-
-    void SendMessageToZZW(QString name, const char* data, int len);
-
-public slots:
-
-    void UpdateSendInfo();
-
-protected:
-
-    DanLiUdp();
-
-private:
-
-    static QAtomicPointer<DanLiUdp> instance_;
-
-    static QMutex mutex_;
-
-    UdpServer* _udpServer = nullptr;
-
-    std::map<QString, SendInfo> _sendInfo;
-};

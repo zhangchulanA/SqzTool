@@ -1,25 +1,4 @@
 
-# ProjectRoot/
-# ├─ App.pro                 # 工程总配置
-# ├─ Core/                   # 【全局底层底座｜最优先】
-# │  ├─ Core.pri
-# │  ├─ UiBase/              # BaseWidget / BaseDialog / BaseMainWindow
-# │  ├─ BaseService.h        # 服务统一基类(QObject)
-# │  ├─ MessageBus/          # 消息总线
-# │  ├─ UniversalFactory/    # 你的万能工厂(全局唯一对象管理器)
-# │  └─ Translator/          # 多语言翻译框架
-# │
-# ├─ Network/                # 通信层：TCP/UDP/串口服务
-# ├─ Protocol/               # 协议解析、组包、校验
-# ├─ DataManager/            # 全局数据缓存、数据模型
-# ├─ Database/               # SQLite数据库服务
-# ├─ Config/                 # 本地配置、全局参数
-# ├─ Log/                    # Logger日志、日志服务
-# ├─ Utils/                  # 静态工具类(无实例、不注册工厂)
-# ├─ Style/                  # QSS主题、全局样式
-# ├─ Widget/           # 全局通用UI控件(复用型)
-# └─ Business/               # 业务窗口、业务逻辑
-
 QT       += core gui network sql xml concurrent
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
@@ -55,9 +34,11 @@ CONFIG(debug,debug|release){
     DESTDIR = $$PWD/SqzLib
     message("Release模式：生成库文件,在当前目录SqzLib文件夹下")
 }
-# You can make your code fail to compile if it uses deprecated APIs.
-# In order to do so, uncomment the following line.
-#DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
+
+OBJECTS_DIR     = $$OUT_PWD/obj
+MOC_DIR         = $$OUT_PWD/moc
+RCC_DIR         = $$OUT_PWD/rcc
+UI_DIR          = $$OUT_PWD/ui
 
 #LIBS += -lasound
 
@@ -135,4 +116,9 @@ DISTFILES += \
     COPIES += translators
 
 
+QMAKE_CLEAN += \
+        $$OBJECTS_DIR/* \
+        $$MOC_DIR/* \
+        $$RCC_DIR/* \
+        $$UI_DIR/*
 

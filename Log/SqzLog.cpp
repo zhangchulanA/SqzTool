@@ -19,8 +19,8 @@ SqzLog::SqzLog()
     , m_partIndex(1)          // 分片也从 1 开始
     , m_logLevel(E_LOG_DEBUG) // 默认显示所有日志
     , m_maxFileSize(10 * 1024 * 1024) // 默认 10 MB
-    , m_enableConsole(true)   // 默认开启控制台
-    , m_enableFile(true)      // 默认开启文件
+    , m_enableConsole(false)   // 默认开启控制台
+    , m_enableFile(false)      // 默认开启文件
     , m_flushCounter(0)       // flush 计数器初始为 0
 {
     // 构造函数不做复杂操作，由 init() 完成实际初始化

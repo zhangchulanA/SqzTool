@@ -3,7 +3,7 @@
 
 #include <QMutex>
 #include <QMutexLocker>
-
+//        Q_GLOBAL_STATIC(OfflineASR,OfflineASR)
 template <typename T>
 class Singleton
 {

@@ -1,2 +1,0 @@
-# SqzTool
-I love it
