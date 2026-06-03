@@ -1,71 +1,133 @@
 #include "IniUtils.h"
 #include <QTextCodec>
-#include <QMutexLocker>
 #include <QFile>
-#include <QFileInfo>
 #include <QDir>
+#include <QDebug>
 
-/**
- * @brief 构造函数：初始化INI文件
- */
-IniUtils::IniUtils(const QString& filePath)
+// ==============================================
+// 构造与析构
+// ==============================================
+
+IniUtils::IniUtils(const QString& filePath, bool autoSync)
     : m_filePath(filePath)
+    , m_autoSync(autoSync)
 {
-    // 初始化Qt INI操作对象，设置为UTF-8编码解决中文乱码
     m_pSettings = new QSettings(filePath, QSettings::IniFormat);
-    m_pSettings->setIniCodec(QTextCodec::codecForName("UTF-8"));
+
+    QTextCodec* codec = QTextCodec::codecForName("UTF-8");
+    if (codec) {
+        m_pSettings->setIniCodec(codec);
+    } else {
+        qWarning() << "IniUtils: Failed to get UTF-8 codec, using system default.";
+    }
 }
 
-/**
- * @brief 析构函数：释放资源
- */
 IniUtils::~IniUtils()
 {
+    // 析构前同步，确保所有未写入的数据保存到磁盘
+    {
+        QMutexLocker locker(&m_mutex);
+        doSyncToFile();
+    }
     delete m_pSettings;
 }
 
 // ==============================================
-// 基础文件操作实现
+// 基础文件操作
 // ==============================================
+
 QString IniUtils::getFilePath() const
 {
+    QMutexLocker locker(&m_mutex);
     return m_filePath;
 }
 
 bool IniUtils::isFileExist() const
 {
+    QMutexLocker locker(&m_mutex);
     return QFile::exists(m_filePath);
 }
 
 void IniUtils::reloadFile()
 {
     QMutexLocker locker(&m_mutex);
-    m_pSettings->sync();
+
+    bool oldAutoSync = m_autoSync;
+
+    delete m_pSettings;
+    m_pSettings = new QSettings(m_filePath, QSettings::IniFormat);
+
+    QTextCodec* codec = QTextCodec::codecForName("UTF-8");
+    if (codec) {
+        m_pSettings->setIniCodec(codec);
+    }
+
+    m_autoSync = oldAutoSync;
 }
 
 void IniUtils::syncToFile()
 {
     QMutexLocker locker(&m_mutex);
-    m_pSettings->sync();
+    doSyncToFile();
+}
+
+void IniUtils::flush()
+{
+    syncToFile();
+}
+
+void IniUtils::doSyncToFile()
+{
+    if (m_pSettings) {
+        m_pSettings->sync();
+    }
 }
 
 bool IniUtils::backupFile(const QString& backupPath)
 {
-    QMutexLocker locker(&m_mutex);
-    if (!isFileExist()) return false;
+    // 先同步内存数据到磁盘
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!isFileExist()) {
+            return false;
+        }
+        doSyncToFile();
+    }
+    return QFile::copy(m_filePath, backupPath);
+}
 
-    QFile srcFile(m_filePath);
-    return srcFile.copy(backupPath);
+void IniUtils::setAutoSync(bool enabled)
+{
+    QMutexLocker locker(&m_mutex);
+    m_autoSync = enabled;
+}
+
+bool IniUtils::autoSync() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_autoSync;
 }
 
 // ==============================================
-// 基础写入实现
+// 内部无锁实现
 // ==============================================
+
+void IniUtils::doWriteString(const QString& group, const QString& key, const QString& value)
+{
+    m_pSettings->setValue(QString("%1/%2").arg(group, key), value);
+    if (m_autoSync) {
+        doSyncToFile();
+    }
+}
+
+// ==============================================
+// 基础写入（公开接口，加锁）
+// ==============================================
+
 void IniUtils::writeString(const QString& group, const QString& key, const QString& value)
 {
     QMutexLocker locker(&m_mutex);
-    m_pSettings->setValue(QString("%1/%2").arg(group, key), value);
-    syncToFile();
+    doWriteString(group, key, value);
 }
 
 void IniUtils::writeInt(const QString& group, const QString& key, int value)
@@ -73,9 +135,11 @@ void IniUtils::writeInt(const QString& group, const QString& key, int value)
     writeString(group, key, QString::number(value));
 }
 
-void IniUtils::writeDouble(const QString& group, const QString& key, double value)
+void IniUtils::writeDouble(const QString& group, const QString& key, double value, int precision)
 {
-    writeString(group, key, QString::number(value, 'f', 2));
+    if (precision < 0) precision = 0;
+    if (precision > 15) precision = 15;
+    writeString(group, key, QString::number(value, 'f', precision));
 }
 
 void IniUtils::writeBool(const QString& group, const QString& key, bool value)
@@ -87,59 +151,66 @@ void IniUtils::writeByteArray(const QString& group, const QString& key, const QB
 {
     QMutexLocker locker(&m_mutex);
     m_pSettings->setValue(QString("%1/%2").arg(group, key), value);
-    syncToFile();
+    if (m_autoSync) {
+        doSyncToFile();
+    }
 }
 
 // ==============================================
-// 基础读取实现
+// 基础读取
 // ==============================================
-QString IniUtils::readString(const QString& group, const QString& key, const QString& defaultValue)
+
+QString IniUtils::readString(const QString& group, const QString& key, const QString& defaultValue) const
 {
     QMutexLocker locker(&m_mutex);
     return m_pSettings->value(QString("%1/%2").arg(group, key), defaultValue).toString();
 }
 
-int IniUtils::readInt(const QString& group, const QString& key, int defaultValue)
+int IniUtils::readInt(const QString& group, const QString& key, int defaultValue) const
 {
     bool ok = false;
     int val = readString(group, key).toInt(&ok);
     return ok ? val : defaultValue;
 }
 
-double IniUtils::readDouble(const QString& group, const QString& key, double defaultValue)
+double IniUtils::readDouble(const QString& group, const QString& key, double defaultValue) const
 {
     bool ok = false;
     double val = readString(group, key).toDouble(&ok);
     return ok ? val : defaultValue;
 }
 
-bool IniUtils::readBool(const QString& group, const QString& key, bool defaultValue)
+bool IniUtils::readBool(const QString& group, const QString& key, bool defaultValue) const
 {
-    QString val = readString(group, key).toLower();
-    if (val == "true")  return true;
-    if (val == "false") return false;
+    QString val = readString(group, key).toLower().trimmed();
+
+    if (val == "true" || val == "1" || val == "yes" || val == "on")
+        return true;
+    if (val == "false" || val == "0" || val == "no" || val == "off")
+        return false;
+
     return defaultValue;
 }
 
-QByteArray IniUtils::readByteArray(const QString& group, const QString& key, const QByteArray& defaultValue)
+QByteArray IniUtils::readByteArray(const QString& group, const QString& key, const QByteArray& defaultValue) const
 {
     QMutexLocker locker(&m_mutex);
     return m_pSettings->value(QString("%1/%2").arg(group, key), defaultValue).toByteArray();
 }
 
 // ==============================================
-// 批量操作实现
+// 批量操作
 // ==============================================
+
 void IniUtils::writeBatch(const QString& group, const QMap<QString, QString>& keyValueMap)
 {
     QMutexLocker locker(&m_mutex);
     for (auto it = keyValueMap.begin(); it != keyValueMap.end(); ++it) {
-        m_pSettings->setValue(QString("%1/%2").arg(group, it.key()), it.value());
+        doWriteString(group, it.key(), it.value());
     }
-    syncToFile();
 }
 
-QMap<QString, QString> IniUtils::readBatch(const QString& group)
+QMap<QString, QString> IniUtils::readBatch(const QString& group) const
 {
     QMutexLocker locker(&m_mutex);
     QMap<QString, QString> map;
@@ -160,19 +231,22 @@ void IniUtils::removeKeys(const QString& group, const QStringList& keyList)
     for (const QString& key : keyList) {
         m_pSettings->remove(QString("%1/%2").arg(group, key));
     }
-    syncToFile();
+    if (m_autoSync) {
+        doSyncToFile();
+    }
 }
 
 // ==============================================
-// 分组高级操作实现
+// 分组高级操作
 // ==============================================
-QStringList IniUtils::getAllGroups()
+
+QStringList IniUtils::getAllGroups() const
 {
     QMutexLocker locker(&m_mutex);
     return m_pSettings->childGroups();
 }
 
-QStringList IniUtils::getGroupKeys(const QString& group)
+QStringList IniUtils::getGroupKeys(const QString& group) const
 {
     QMutexLocker locker(&m_mutex);
     m_pSettings->beginGroup(group);
@@ -181,39 +255,44 @@ QStringList IniUtils::getGroupKeys(const QString& group)
     return keys;
 }
 
-bool IniUtils::isGroupExist(const QString& group)
+bool IniUtils::isGroupExist(const QString& group) const
 {
     return getAllGroups().contains(group);
 }
 
-bool IniUtils::isKeyExist(const QString& group, const QString& key)
+bool IniUtils::isKeyExist(const QString& group, const QString& key) const
 {
     QMutexLocker locker(&m_mutex);
     return m_pSettings->contains(QString("%1/%2").arg(group, key));
 }
 
 // ==============================================
-// 删除/清空操作实现
+// 删除/清空操作
 // ==============================================
+
 void IniUtils::removeKey(const QString& group, const QString& key)
 {
     QMutexLocker locker(&m_mutex);
     m_pSettings->remove(QString("%1/%2").arg(group, key));
-    syncToFile();
+    if (m_autoSync) {
+        doSyncToFile();
+    }
 }
 
 void IniUtils::removeGroup(const QString& group)
 {
     QMutexLocker locker(&m_mutex);
-    m_pSettings->beginGroup(group);
-    m_pSettings->remove("");
-    m_pSettings->endGroup();
-    syncToFile();
+    m_pSettings->remove(group);
+    if (m_autoSync) {
+        doSyncToFile();
+    }
 }
 
 void IniUtils::clearAll()
 {
     QMutexLocker locker(&m_mutex);
     m_pSettings->clear();
-    syncToFile();
+    if (m_autoSync) {
+        doSyncToFile();
+    }
 }
