@@ -12,7 +12,6 @@
 #include "TimerUtils.h"
 #include "TestWidget.h"
 #include "CustomSearchBox.h"
-#include "sqzudptest.h"
 #include "FlexData.h"
 #include "ProtocolSchema.h"
 #include "TableBuilder.h"
@@ -49,7 +48,7 @@ int main(int argc, char *argv[])
 //    FacIn.CreateWidget("TestWidget");
 
 
-    // 1. 注册列模板
+//     1. 注册列模板
        TableBuilder::registerColumnTemplate("ID", [](TableBuilder& builder, const QString& title) {
            builder.addColumn(title)
                   .setWidth(80)
@@ -77,7 +76,7 @@ int main(int argc, char *argv[])
                    .setEditable(true);
 
        // 3. 样式与主题
-       builder.applyTheme(TableStyle::DarkTheme)
+       builder.applyTheme(TableStyle::LightTheme)
               .setRowHeight(30)
               .setAlternatingRowColors(true);
 

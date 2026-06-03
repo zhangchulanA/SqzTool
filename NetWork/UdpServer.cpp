@@ -142,7 +142,7 @@ void UdpServer::ReceiveData()
         if(size != -1)
         {
             SqzBus::send("GET_UDP_DATA",{QVariant::fromValue(senderAddress),senderPort,data});
-//            emit DataReceived(data);
+            //            emit DataReceived(data);
         }
     }
 
@@ -150,15 +150,15 @@ void UdpServer::ReceiveData()
 
 void UdpServer::ReceiveGroupData()
 {
-       while (groupSocket->hasPendingDatagrams()) {
-           QByteArray data;
-           data.resize(groupSocket->pendingDatagramSize());
-           QHostAddress senderAddress;
-           quint16 senderPort;
-           qint64 aa = groupSocket->readDatagram(data.data(),data.size(),&senderAddress,&senderPort);
-           if(aa != -1)
-              emit GroupDataReceived(data);
-       }
+    while (groupSocket->hasPendingDatagrams()) {
+        QByteArray data;
+        data.resize(groupSocket->pendingDatagramSize());
+        QHostAddress senderAddress;
+        quint16 senderPort;
+        qint64 aa = groupSocket->readDatagram(data.data(),data.size(),&senderAddress,&senderPort);
+        if(aa != -1)
+            emit GroupDataReceived(data);
+    }
 }
 
 QUdpSocket *UdpServer::GetUdpSocket()
@@ -168,12 +168,16 @@ QUdpSocket *UdpServer::GetUdpSocket()
 
 void UdpServer::Close()
 {
-    m_Socket->close();
+    if(m_Socket->state() == QUdpSocket::BoundState){
+        m_Socket->close();
+    }
 }
 
 void UdpServer::GroupClose()
 {
-    groupSocket->close();
+    if(groupSocket->state() == QUdpSocket::BoundState){
+        groupSocket->close();
+    }
 }
 
 void UdpServer::onReadyRead()

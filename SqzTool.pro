@@ -64,16 +64,13 @@ include(NetWork/NetWork.pri)
 
 SOURCES += \
     TestWidget.cpp \
-    main.cpp \
-    sqzudptest.cpp
+    main.cpp
 
 HEADERS += \
-    TestWidget.h \
-    sqzudptest.h
+    TestWidget.h
 
 FORMS += \
-    TestWidget.ui \
-    sqzudptest.ui
+    TestWidget.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -99,11 +96,9 @@ RESOURCES +=
 
 
 DISTFILES += \
-    FlexData.md \
     SqzData/config/app_config.ini \
     SqzData/translator/English.json \
-    SqzData/translator/简体中文.json \
-    config.xml
+    SqzData/translator/简体中文.json
 #复制配置文件到输出目录
 
     config.files += $$PWD/SqzData/config/app_config.ini
