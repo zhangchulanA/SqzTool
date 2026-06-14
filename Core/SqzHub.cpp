@@ -1,12 +1,13 @@
-#include "SqzFactory.h"
+#include "SqzHub.h"
+#include <QThread>
+#include <QTimer>
 
-
-thread_local QString SqzFactory::t_prefix;
+thread_local QString SqzHub::t_prefix;
 // 构造函数
-SqzFactory::SqzFactory(QObject *parent) : QObject(parent) {}
+SqzHub::SqzHub(QObject *parent) : SqzProp(parent) {}
 
 // 析构函数：释放所有单例对象
-SqzFactory::~SqzFactory()
+SqzHub::~SqzHub()
 {
     QWriteLocker locker(&GetFactoryLock());
     for (auto it = m_singlePool.begin(); it != m_singlePool.end(); ++it)
@@ -24,25 +25,25 @@ SqzFactory::~SqzFactory()
 }
 
 
-void SqzFactory::SetThreadPrefix(const QString &prefix)
+void SqzHub::SetThreadPrefix(const QString &prefix)
 {
     t_prefix = prefix;
 }
 
-QString SqzFactory::ThreadPrefix()
+QString SqzHub::ThreadPrefix()
 {
     return t_prefix;
 }
 
-QString SqzFactory::maybeAddThreadPrefix(const QString &className)
+QString SqzHub::maybeAddThreadPrefix(const QString &className)
 {
-    if (className.contains("::") || SqzFactory::ThreadPrefix().isEmpty())
+    if (className.contains("::") || SqzHub::ThreadPrefix().isEmpty())
         return className;
-    return SqzFactory::ThreadPrefix() + "::" + className;
+    return SqzHub::ThreadPrefix() + "::" + className;
 }
 
 // 注册无参类
-void SqzFactory::RegisterNoArg(const QString& ClassName,
+void SqzHub::RegisterNoArg(const QString& ClassName,
                                std::function<void*()> Creator,
                                std::function<void(void*)> Deleter,
                                bool isQObject)
@@ -54,26 +55,29 @@ void SqzFactory::RegisterNoArg(const QString& ClassName,
         ClassMeta meta{std::move(Creator), std::move(Deleter), isQObject};
         m_noArgCreator[fullname] = std::move(meta);
     }
-    else logwarn << "[Fac] 重复注册类：" << fullname;
+
+
+
+    else logwarn << "[SqzHub] 重复注册类：" << fullname;
 }
 
 // 注册带参类
-void SqzFactory::RegisterWithArg(const QString& ClassName, CreatorWithArg Func)
+void SqzHub::RegisterWithArg(const QString& ClassName, CreatorWithArg Func)
 {
-        QString fullname = maybeAddThreadPrefix(ClassName);
+    QString fullname = maybeAddThreadPrefix(ClassName);
     QWriteLocker locker(&GetFactoryLock());
     if (!m_argCreator.contains(fullname))
         m_argCreator[fullname] = std::move(Func);
-    else logwarn << "[Fac] 重复注册带参类：" << fullname;
+    else logwarn << "[SqzHub] 重复注册带参类：" << fullname;
 }
 
 // 创建窗口单例（主线程专用）
-QWidget* SqzFactory::CreateWidget(const QString& ClassName)
+QWidget* SqzHub::CreateWidget(const QString& ClassName)
 {
-            QString fullname = maybeAddThreadPrefix(ClassName);
+    QString fullname = maybeAddThreadPrefix(ClassName);
     if (QThread::currentThread() != QCoreApplication::instance()->thread())
     {
-        logwarn << "[Fac] 禁止子线程操作UI：" << fullname;
+        logwarn << "[SqzHub] 禁止子线程操作UI：" << fullname;
         return nullptr;
     }
     {
@@ -82,6 +86,7 @@ QWidget* SqzFactory::CreateWidget(const QString& ClassName)
         {
             QWidget* w = static_cast<QWidget*>(m_singlePool[fullname]);
             w->show(); w->raise(); w->activateWindow();
+            reg(w);
             return w;
         }
     }
@@ -90,7 +95,7 @@ QWidget* SqzFactory::CreateWidget(const QString& ClassName)
         QReadLocker locker(&GetFactoryLock());
         if (!m_noArgCreator.contains(fullname))
         {
-            logwarn << "[Fac] 未注册类：" << fullname;
+            logwarn << "[SqzHub] 未注册类：" << fullname;
             return nullptr;
         }
         meta = m_noArgCreator[fullname];
@@ -100,7 +105,7 @@ QWidget* SqzFactory::CreateWidget(const QString& ClassName)
     if (!widget)
     {
         if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
-        logwarn << "[Fac] 类型转换失败：" << fullname;
+        logwarn << "[SqzHub] 类型转换失败：" << fullname;
         return nullptr;
     }
     {
@@ -110,6 +115,7 @@ QWidget* SqzFactory::CreateWidget(const QString& ClassName)
             if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
             QWidget* exist = static_cast<QWidget*>(m_singlePool[fullname]);
             exist->show(); exist->raise(); exist->activateWindow();
+            reg(exist);
             return exist;
         }
         m_singlePool[fullname] = widget;
@@ -119,13 +125,14 @@ QWidget* SqzFactory::CreateWidget(const QString& ClassName)
         m_singlePool.remove(fullname);
     });
     widget->show(); widget->raise(); widget->activateWindow();
+    reg(widget);
     return widget;
 }
 
 // 创建QObject单例
-QObject* SqzFactory::CreateObject(const QString& ClassName)
+QObject* SqzHub::CreateObject(const QString& ClassName)
 {
-                QString fullname = maybeAddThreadPrefix(ClassName);
+    QString fullname = maybeAddThreadPrefix(ClassName);
     {
         QReadLocker locker(&GetFactoryLock());
         if (m_singlePool.contains(fullname))
@@ -149,7 +156,9 @@ QObject* SqzFactory::CreateObject(const QString& ClassName)
         if (m_singlePool.contains(fullname))
         {
             if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
-            return static_cast<QObject*>(m_singlePool[fullname]);
+            QObject * obj = static_cast<QObject*>(m_singlePool[fullname]);
+            reg(obj);
+            return obj;
         }
         m_singlePool[fullname] = obj;
     }
@@ -157,13 +166,14 @@ QObject* SqzFactory::CreateObject(const QString& ClassName)
         QWriteLocker locker(&GetFactoryLock());
         m_singlePool.remove(fullname);
     });
+    reg(obj);
     return obj;
 }
 
 // 创建普通类单例
-void* SqzFactory::CreateRawObj(const QString& ClassName)
+void* SqzHub::CreateRawObj(const QString& ClassName)
 {
-       QString fullname = maybeAddThreadPrefix(ClassName);
+    QString fullname = maybeAddThreadPrefix(ClassName);
     {
         QReadLocker locker(&GetFactoryLock());
         if (m_singlePool.contains(fullname))
@@ -177,7 +187,7 @@ void* SqzFactory::CreateRawObj(const QString& ClassName)
     }
     void* raw = meta.creator();
     if (meta.isQObject)
-        logwarn << "[Fac] 警告：" << fullname << "是QObject，建议用CreateObject";
+        logwarn << "[SqzHub] 警告：" << fullname << "是QObject，建议用CreateObject";
     {
         QWriteLocker locker(&GetFactoryLock());
         if (m_singlePool.contains(fullname))
@@ -191,15 +201,15 @@ void* SqzFactory::CreateRawObj(const QString& ClassName)
 }
 
 // 判断对象是否存在
-bool SqzFactory::IsExist(const QString& ClassName)
+bool SqzHub::IsExist(const QString& ClassName)
 {
-           QString fullname = maybeAddThreadPrefix(ClassName);
+    QString fullname = maybeAddThreadPrefix(ClassName);
     QReadLocker locker(&GetFactoryLock());
     return m_singlePool.contains(fullname);
 }
 
 // 立即销毁对象
-void SqzFactory::CloseObj(const QString& ClassName)
+void SqzHub::CloseObj(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
     ClassMeta meta;
@@ -213,10 +223,14 @@ void SqzFactory::CloseObj(const QString& ClassName)
     }
     if (meta.deleter) meta.deleter(ptr);
     else SafeDelete(ptr, meta.isQObject);
+
+    QObject* obj = static_cast<QObject*>(ptr);
+    unreg(obj);
+
 }
 
 // 延迟销毁对象
-void SqzFactory::CloseObjLater(const QString& ClassName)
+void SqzHub::CloseObjLater(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
@@ -224,7 +238,7 @@ void SqzFactory::CloseObjLater(const QString& ClassName)
 }
 
 // 重置对象（销毁+重建）
-void SqzFactory::ResetObj(const QString& ClassName)
+void SqzHub::ResetObj(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
@@ -246,7 +260,7 @@ void SqzFactory::ResetObj(const QString& ClassName)
 }
 
 // 创建临时对象（不入池）
-void* SqzFactory::CreateTemp(const QString& ClassName)
+void* SqzHub::CreateTemp(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
     QReadLocker locker(&GetFactoryLock());
@@ -255,7 +269,7 @@ void* SqzFactory::CreateTemp(const QString& ClassName)
 }
 
 // 安全释放裸指针
-void SqzFactory::SafeDelete(void* Ptr, bool isQObject)
+void SqzHub::SafeDelete(void* Ptr, bool isQObject)
 {
     if (!Ptr) return;
     if (isQObject) reinterpret_cast<QObject*>(Ptr)->deleteLater();
@@ -263,22 +277,22 @@ void SqzFactory::SafeDelete(void* Ptr, bool isQObject)
 }
 
 // 隐藏窗口
-void SqzFactory::HideWidget(const QString& ClassName)
+void SqzHub::HideWidget(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
     if (QThread::currentThread() != QCoreApplication::instance()->thread())
-    { logwarn << "[Fac] 子线程不可操作UI：" << fullname; return; }
+    { logwarn << "[SqzHub] 子线程不可操作UI：" << fullname; return; }
     QWidget* w = GetWidgetPtr(fullname);
     if (w) w->hide();
 }
 
 // 切换窗口显示状态
-void SqzFactory::ToggleWidget(const QString& ClassName)
+void SqzHub::ToggleWidget(const QString& ClassName)
 {
-        QString fullname = maybeAddThreadPrefix(ClassName);
+    QString fullname = maybeAddThreadPrefix(ClassName);
     if (QThread::currentThread() != QCoreApplication::instance()->thread())
-    { logwarn << "[Fac] 子线程不可操作UI：" << fullname; return; }
+    { logwarn << "[SqzHub] 子线程不可操作UI：" << fullname; return; }
     QWidget* w = GetWidgetPtr(fullname);
     if (!w) return;
     if (w->isVisible()) w->hide();
@@ -286,7 +300,7 @@ void SqzFactory::ToggleWidget(const QString& ClassName)
 }
 
 // 判断窗口是否可见
-bool SqzFactory::IsWidgetVisible(const QString& ClassName)
+bool SqzHub::IsWidgetVisible(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
@@ -295,40 +309,40 @@ bool SqzFactory::IsWidgetVisible(const QString& ClassName)
 }
 
 // 设置窗口置顶
-void SqzFactory::SetWidgetTop(const QString& ClassName, bool TopMost)
+void SqzHub::SetWidgetTop(const QString& ClassName, bool TopMost)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
     if (QThread::currentThread() != QCoreApplication::instance()->thread())
-    { logwarn << "[Fac] 子线程不可操作UI：" << fullname; return; }
+    { logwarn << "[SqzHub] 子线程不可操作UI：" << fullname; return; }
     QWidget* w = GetWidgetPtr(fullname);
     if (w) { w->setWindowFlag(Qt::WindowStaysOnTopHint, TopMost); w->show(); }
 }
 
 // 设置窗口大小
-void SqzFactory::SetWidgetSize(const QString& ClassName, int W, int H)
+void SqzHub::SetWidgetSize(const QString& ClassName, int W, int H)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
     if (QThread::currentThread() != QCoreApplication::instance()->thread())
-    { logwarn << "[Fac] 子线程不可操作UI：" << fullname; return; }
+    { logwarn << "[SqzHub] 子线程不可操作UI：" << fullname; return; }
     QWidget* w = GetWidgetPtr(fullname);
     if (w) w->resize(W, H);
 }
 
 // 设置窗口位置
-void SqzFactory::SetWidgetPos(const QString& ClassName, int X, int Y)
+void SqzHub::SetWidgetPos(const QString& ClassName, int X, int Y)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
     if (QThread::currentThread() != QCoreApplication::instance()->thread())
-    { logwarn << "[Fac] 子线程不可操作UI：" << fullname; return; }
+    { logwarn << "[SqzHub] 子线程不可操作UI：" << fullname; return; }
     QWidget* w = GetWidgetPtr(fullname);
     if (w) w->move(X, Y);
 }
 
 // 获取窗口指针
-QWidget* SqzFactory::GetWidgetPtr(const QString& ClassName)
+QWidget* SqzHub::GetWidgetPtr(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
@@ -338,10 +352,10 @@ QWidget* SqzFactory::GetWidgetPtr(const QString& ClassName)
 }
 
 // 隐藏所有窗口
-void SqzFactory::HideAllWidget()
+void SqzHub::HideAllWidget()
 {
     if (QThread::currentThread() != QCoreApplication::instance()->thread())
-    { logwarn << "[Fac] 子线程不可操作UI"; return; }
+    { logwarn << "[SqzHub] 子线程不可操作UI"; return; }
     QReadLocker locker(&GetFactoryLock());
     for (auto ptr : m_singlePool)
     {
@@ -351,7 +365,7 @@ void SqzFactory::HideAllWidget()
 }
 
 // 判断类是否已注册
-bool SqzFactory::IsClassReg(const QString& ClassName)
+bool SqzHub::IsClassReg(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
@@ -360,7 +374,7 @@ bool SqzFactory::IsClassReg(const QString& ClassName)
 }
 
 // 判断实例是否为窗口
-bool SqzFactory::IsWidgetObj(const QString& ClassName)
+bool SqzHub::IsWidgetObj(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
@@ -370,7 +384,7 @@ bool SqzFactory::IsWidgetObj(const QString& ClassName)
 }
 
 // 判断实例是否为QObject
-bool SqzFactory::IsQObject(const QString& ClassName)
+bool SqzHub::IsQObject(const QString& ClassName)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
@@ -380,30 +394,30 @@ bool SqzFactory::IsQObject(const QString& ClassName)
 }
 
 // 获取所有实例类名列表
-QStringList SqzFactory::GetExistClassList()
+QStringList SqzHub::GetExistClassList()
 {
     QReadLocker locker(&GetFactoryLock());
     return m_singlePool.keys();
 }
 
 // 获取实例总数
-int SqzFactory::GetInstanceCount()
+int SqzHub::GetInstanceCount()
 {
     QReadLocker locker(&GetFactoryLock());
     return m_singlePool.size();
 }
 
 // 打印已注册类名
-void SqzFactory::PrintRegClass()
+void SqzHub::PrintRegClass()
 {
     QReadLocker locker(&GetFactoryLock());
-    logdebug << "===== [Fac] 已注册类列表 =====";
+    logdebug << "===== [SqzHub] 已注册类列表 =====";
     for (auto& key : m_noArgCreator.keys())
         logdebug << key;
 }
 
 // 销毁所有单例
-void SqzFactory::CloseAll()
+void SqzHub::CloseAll()
 {
     QList<void*> deleteList;
     QList<ClassMeta> metaList;
@@ -423,11 +437,16 @@ void SqzFactory::CloseAll()
     {
         if (metaList[i].deleter) metaList[i].deleter(deleteList[i]);
         else SafeDelete(deleteList[i], metaList[i].isQObject);
+
+        QObject* obj = static_cast<QObject*>(deleteList[i]);
+        unreg(obj);
     }
+
+    m_objects.clear();
 }
 
 // 清空注册表
-void SqzFactory::ClearReg()
+void SqzHub::ClearReg()
 {
     QWriteLocker locker(&GetFactoryLock());
     m_noArgCreator.clear();
@@ -435,7 +454,7 @@ void SqzFactory::ClearReg()
 }
 
 // 带参创建临时QObject
-QObject* SqzFactory::CreateObjectByArg(const QString& ClassName, const QVariantList& Args)
+QObject* SqzHub::CreateObjectByArg(const QString& ClassName, const QVariantList& Args)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
 
@@ -445,12 +464,12 @@ QObject* SqzFactory::CreateObjectByArg(const QString& ClassName, const QVariantL
     return qobject_cast<QObject*>(static_cast<QObject*>(raw));
 }
 
-SqzFactory::PrefixScope::PrefixScope(const QString &prefix) : m_oldPrefix(t_prefix)
+SqzHub::PrefixScope::PrefixScope(const QString &prefix) : m_oldPrefix(t_prefix)
 {
     t_prefix = prefix;
 }
 
-SqzFactory::PrefixScope::~PrefixScope()
+SqzHub::PrefixScope::~PrefixScope()
 {
-     t_prefix = m_oldPrefix;
+    t_prefix = m_oldPrefix;
 }

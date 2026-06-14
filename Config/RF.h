@@ -1,0 +1,115 @@
+#ifndef RF_H
+#define RF_H
+
+#include <QObject>
+#include <QVariant>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QMetaMethod>
+#include <QMetaEnum>
+#include <QMetaType>
+#include <QVector>
+#include <QString>
+#include <functional>
+#include <type_traits>
+
+// 用法: PROP(类型, 名称, 默认值)
+// 示例: PROP(int, age, 0)
+#define PROP(type, name, defaultValue)                         \
+    Q_PROPERTY(type name READ name WRITE set##name NOTIFY name##Changed) \
+public:                                                            \
+    type name() const { return m_##name; }                         \
+    void set##name(type val) {                                     \
+        if (m_##name != val) {                                     \
+            m_##name = std::move(val);                             \
+            emit name##Changed(m_##name);                          \
+        }                                                          \
+    }                                                              \
+    Q_SIGNALS:                                                     \
+    void name##Changed(type val);                                  \
+private:                                                           \
+    type m_##name = defaultValue;                                  \
+public:
+
+// ==================== 获取当前类的全部属性 ====================
+// 自动生成 JSON 序列化（仅包含当前类定义的属性，自动排除父类）
+#define ENABLE_JSON \
+public: \
+    QJsonObject toJson() const { \
+        QJsonObject obj; \
+        const QMetaObject* mo = metaObject(); \
+        int startIdx = mo->propertyOffset();  /* 当前类第一个属性的索引 */ \
+        for (int i = startIdx; i < mo->propertyCount(); ++i) { \
+            QMetaProperty prop = mo->property(i); \
+            if (prop.isReadable() && prop.isValid()) { \
+                obj[QLatin1String(prop.name())] = QJsonValue::fromVariant(prop.read(this)); \
+            } \
+        } \
+        return obj; \
+    } \
+    void fromJson(const QJsonObject& obj) { \
+        const QMetaObject* mo = metaObject(); \
+        int startIdx = mo->propertyOffset(); \
+        for (int i = startIdx; i < mo->propertyCount(); ++i) { \
+            QMetaProperty prop = mo->property(i); \
+            if (!prop.isWritable()) continue; \
+            QLatin1String name(prop.name()); \
+            if (obj.contains(name)) { \
+                QJsonValue val = obj[name]; \
+                prop.write(this, val.toVariant()); \
+            } \
+        } \
+    }
+
+
+
+
+// ==================== 自动连接管理 ====================
+#define AUTO_CONNECT_DECLARE QVector<QMetaObject::Connection> _autoConnections;
+#define AUTO_CONNECT(sender, signal, receiver, slot) \
+    _autoConnections.append(QObject::connect(sender, signal, receiver, slot))
+#define AUTO_CONNECT_DESTRUCTOR \
+    for (auto& c : _autoConnections) QObject::disconnect(c); \
+    _autoConnections.clear();
+
+// ==================== 跨线程调用 ====================
+#define INVOKE_THREAD(obj, method, ...) \
+    QMetaObject::invokeMethod(obj, [=] { obj->method(__VA_ARGS__); }, Qt::QueuedConnection)
+
+// ==================== 枚举字符串互转 ====================
+#define DECLARE_ENUM_STR(EnumType, EnumName) \
+    static QString EnumName##ToString(EnumType value) { \
+        const QMetaObject* mo = &staticMetaObject; \
+        int idx = mo->indexOfEnumerator(#EnumName); \
+        if (idx >= 0) { \
+            return QString::fromLatin1(mo->enumerator(idx).valueToKey(static_cast<int>(value))); \
+        } \
+        return QString(); \
+    } \
+    static EnumType EnumName##FromString(const QString& str, bool* ok = nullptr) { \
+        const QMetaObject* mo = &staticMetaObject; \
+        int idx = mo->indexOfEnumerator(#EnumName); \
+        if (idx >= 0) { \
+            QMetaEnum me = mo->enumerator(idx); \
+            int v = me.keyToValue(str.toLatin1().constData(), ok); \
+            return static_cast<EnumType>(v); \
+        } \
+        if (ok) *ok = false; \
+        return static_cast<EnumType>(0); \
+    }
+
+// ==================== 样式表快捷 ====================
+#define QSS_STYLE(selector, properties) \
+    QStringLiteral(selector " { " properties " }")
+
+// ==================== 属性到控件绑定 ====================
+#define BIND_PROP(widget, setter, obj, prop) \
+    do { \
+        auto* _w = (widget); \
+        auto* _o = (obj); \
+        QObject::connect(_o, &std::remove_reference_t<decltype(*_o)>::prop##Changed, \
+                         _w, [_w](const auto& val){ _w->setter(val); }); \
+        _w->setter(_o->prop()); \
+    } while(false)
+
+#endif // RF_H

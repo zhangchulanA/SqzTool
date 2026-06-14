@@ -12,69 +12,69 @@ SqzBus *SqzBus::instance()
 // ==============================
 // 发送消息（无注释，保持简洁）
 // ==============================
-void SqzBus::send(const QString &msgName)
+void SqzBus::Send(const QString &msgName)
 {
-    send(msgName, QVariant());
+    Send(msgName, QVariant());
 }
 
-void SqzBus::send(const QString &msgName, const QVariant &args)
+void SqzBus::Send(const QString &msgName, const QVariant &args)
 {
     instance()->sendImpl(msgName, args);
 }
 
-void SqzBus::send(const QString &msgName, const QString &str)
+void SqzBus::Send(const QString &msgName, const QString &str)
 {
-    send(msgName, QVariant(str));
+    Send(msgName, QVariant(str));
 }
 
-void SqzBus::send(const QString &msgName, const int &value)
+void SqzBus::Send(const QString &msgName, const int &value)
 {
-    send(msgName, QVariant(value));
+    Send(msgName, QVariant(value));
 }
 
-void SqzBus::send(const QString &msgName, const double &value)
+void SqzBus::Send(const QString &msgName, const double &value)
 {
-    send(msgName, QVariant(value));
+    Send(msgName, QVariant(value));
 }
 
-void SqzBus::send(const QString &msgName, const bool &value)
+void SqzBus::Send(const QString &msgName, const bool &value)
 {
-    send(msgName, QVariant(value));
+    Send(msgName, QVariant(value));
 }
 
-void SqzBus::send(const QString &msgName, const QByteArray &value)
+void SqzBus::Send(const QString &msgName, const QByteArray &value)
 {
-    send(msgName, QVariant(value));
+    Send(msgName, QVariant(value));
 }
 
-void SqzBus::send(const QString &msgName, const qint64 &value)
+void SqzBus::Send(const QString &msgName, const qint64 &value)
 {
-    send(msgName, QVariant(value));
+    Send(msgName, QVariant(value));
 }
 
-void SqzBus::send(const QString &msgName, const QVariantList &list)
+void SqzBus::Send(const QString &msgName, const QVariantList &list)
 {
-    send(msgName, QVariant(list));
+    Send(msgName, QVariant(list));
 }
 
-void SqzBus::send(const QString &msgName, const QVariantMap &map)
+void SqzBus::Send(const QString &msgName, const QVariantMap &map)
 {
-    send(msgName, QVariant(map));
+    Send(msgName, QVariant(map));
 }
 
 // ==============================
 // 注册监听（无注释，保持简洁）
 // ==============================
-void SqzBus::receive(QObject *receiver, const QString &msgName,
+void SqzBus::Receive(QObject *receiver, const QString &msgName,
                      std::function<void (const QVariant &)> callback)
 {
     instance()->receiveImpl(receiver, msgName, std::move(callback));
 }
 
-void SqzBus::receive(QObject *receiver, const QString &msgName,
+void SqzBus::Receive(QObject *receiver, const QString &msgName,
                      std::function<void ()> callback)
 {
-    receive(receiver, msgName, [callback](const QVariant&) {
+    Receive(receiver, msgName, [callback](const QVariant&) {
         callback();
     });
 }
@@ -82,7 +82,7 @@ void SqzBus::receive(QObject *receiver, const QString &msgName,
 // ==============================
 // 一次性监听
 // ==============================
-void SqzBus::receiveOnce(QObject *receiver, const QString &msgName,
+void SqzBus::ReceiveOnce(QObject *receiver, const QString &msgName,
                           std::function<void(const QVariant&)> callback)
 {
     if (!receiver || !callback) return;
@@ -92,16 +92,16 @@ void SqzBus::receiveOnce(QObject *receiver, const QString &msgName,
         [receiver, msgName, callback](const QVariant& args) {
             callback(args);
             // 执行完毕后，注销当前 (receiver, msgName) 的回调
-            SqzBus::off(receiver, msgName);
+            SqzBus::Off(receiver, msgName);
         };
 
-    receive(receiver, msgName, wrapper);
+    Receive(receiver, msgName, wrapper);
 }
 
-void SqzBus::receiveOnce(QObject *receiver, const QString &msgName,
+void SqzBus::ReceiveOnce(QObject *receiver, const QString &msgName,
                           std::function<void()> callback)
 {
-    receiveOnce(receiver, msgName, [callback](const QVariant&) {
+    ReceiveOnce(receiver, msgName, [callback](const QVariant&) {
         callback();
     });
 }
@@ -109,19 +109,19 @@ void SqzBus::receiveOnce(QObject *receiver, const QString &msgName,
 // ==============================
 // 清理接口
 // ==============================
-void SqzBus::clear(const QString &msgName)
+void SqzBus::Clear(const QString &msgName)
 {
     QMutexLocker lock(&instance()->_mutex);
     instance()->_callbacks.remove(msgName);
 }
 
-void SqzBus::clearAll()
+void SqzBus::ClearAll()
 {
     QMutexLocker lock(&instance()->_mutex);
     instance()->_callbacks.clear();
 }
 
-void SqzBus::reset(QObject *obj)
+void SqzBus::Reset(QObject *obj)
 {
     if (!obj) return;
     QMutexLocker lock(&instance()->_mutex);
@@ -141,8 +141,8 @@ void SqzBus::reset(QObject *obj)
     }
 }
 
-// 静态 off：调用实例的 offImpl
-void SqzBus::off(QObject* obj, const QString& msgName)
+// 静态 Off：调用实例的 offImpl
+void SqzBus::Off(QObject* obj, const QString& msgName)
 {
     instance()->offImpl(obj, msgName);
 }
@@ -166,21 +166,21 @@ void SqzBus::offImpl(QObject *obj, const QString &msgName)
 // ==============================
 // 临时屏蔽接口
 // ==============================
-void SqzBus::blockReceiver(QObject *receiver)
+void SqzBus::BlockReceiver(QObject *receiver)
 {
     if (!receiver) return;
     QMutexLocker lock(&instance()->_mutex);
     instance()->_blockedReceivers.insert(receiver);
 }
 
-void SqzBus::unblockReceiver(QObject *receiver)
+void SqzBus::UnblockReceiver(QObject *receiver)
 {
     if (!receiver) return;
     QMutexLocker lock(&instance()->_mutex);
     instance()->_blockedReceivers.remove(receiver);
 }
 
-bool SqzBus::isReceiverBlocked(QObject *receiver)
+bool SqzBus::IsReceiverBlocked(QObject *receiver)
 {
     if (!receiver) return false;
     QMutexLocker lock(&instance()->_mutex);

@@ -1,10 +1,12 @@
 HEADERS += \
     $$PWD/SqzBus.h \
-    $$PWD/SqzFactory.h
+    $$PWD/SqzHub.h \
+    $$PWD/SqzProp.h
 
 SOURCES += \
     $$PWD/SqzBus.cpp \
-    $$PWD/SqzFactory.cpp
+    $$PWD/SqzHub.cpp \
+    $$PWD/SqzProp.cpp
 
 
 

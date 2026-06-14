@@ -3,21 +3,41 @@
 
 #include <QWidget>
 #include "UdpServer.h"
+#include "SqzHub.h"
+
 namespace Ui {
 class TestWidget;
 }
+
+struct AAA{
+    int a;
+    QString b = "333";
+};
 
 class TestWidget : public QWidget
 {
     Q_OBJECT
 
-public:
-    explicit TestWidget(QWidget *parent = nullptr);
+    PROP(int,age,3)
+    PROP(int,num,4)
+
+    ENABLE_JSON
+    public:
+        enum State { Idle, Running, Done };
+    Q_ENUM(State)
+
+    DECLARE_ENUM_STR(State, State)
+
+    AUTO_CONNECT_DECLARE
+
+
+    public:
+        explicit TestWidget(QWidget *parent = nullptr);
     ~TestWidget();
     Q_INVOKABLE void M_InitTrUi();
 private slots:
     void on_pushButton_clicked();
-     void ReceiveUdpData(const QVariantList& list);
+    void ReceiveUdpData(const QVariantList& list);
 private:
     Ui::TestWidget *ui;
 

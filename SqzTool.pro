@@ -18,6 +18,9 @@ CONFIG += c++17
 #    TEMPLATE = app
 #}
 
+INCLUDEPATH += /opt/QtFluentWidgets/include/Fluent
+LIBS += -L/opt/QtFluentWidgets/lib -lQtFluentWidgets
+
 VERSION = 1.0.0
 DEFINES += MODULE_PREFIX=\\\"SqzTool\\\"
 CONFIG(debug,debug|release){

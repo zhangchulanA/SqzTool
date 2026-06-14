@@ -15,12 +15,12 @@
  *
  * @usage 基本用法：
  *        // 注册监听
- *        SqzBus::receive(this, "test", [](const QVariant& data) {
+ *        SqzBus::Receive(this, "test", [](const QVariant& data) {
  *            qDebug() << data.toString();
  *        });
  *
  *        // 发送消息
- *        SqzBus::send("test", "hello");
+ *        SqzBus::Send("test", "hello");
  *
  *        // 一次性监听
  *        SqzBus::receiveOnce(this, "once", []() {
@@ -63,75 +63,75 @@ private:
     // ==============================
 public:
     // ---------- 发送消息（无注释，保持简洁）----------
-    static void send(const QString &msgName);
-    static void send(const QString &msgName, const QVariant &args);
-    static void send(const QString &msgName, const QString &str);
-    static void send(const QString &msgName, const int &value);
-    static void send(const QString &msgName, const double &value);
-    static void send(const QString &msgName, const bool &value);
-    static void send(const QString &msgName, const QByteArray &value);
-    static void send(const QString &msgName, const qint64 &value);
-    static void send(const QString &msgName, const QVariantList &list);
+    static void Send(const QString &msgName);
+    static void Send(const QString &msgName, const QVariant &args);
+    static void Send(const QString &msgName, const QString &str);
+    static void Send(const QString &msgName, const int &value);
+    static void Send(const QString &msgName, const double &value);
+    static void Send(const QString &msgName, const bool &value);
+    static void Send(const QString &msgName, const QByteArray &value);
+    static void Send(const QString &msgName, const qint64 &value);
+    static void Send(const QString &msgName, const QVariantList &list);
     // 增加这个重载
-    static void send(const QString &msgName, const QVariantMap &map);
+    static void Send(const QString &msgName, const QVariantMap &map);
 
     // ---------- 注册监听（无注释，保持简洁）----------
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         std::function<void()> callback);
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         std::function<void(const QVariant&)> callback);
 
     // 模板版本：成员函数指针绑定
     template<typename T>
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         T* instance, void(T::*func)()) {
-        receive(receiver, msgName, [instance, func]() { (instance->*func)(); });
+        Receive(receiver, msgName, [instance, func]() { (instance->*func)(); });
     }
 
     template<typename T>
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         T* instance, void(T::*func)(const QString&)) {
-        receive(receiver, msgName, [instance, func](const QVariant& data) {
+        Receive(receiver, msgName, [instance, func](const QVariant& data) {
             (instance->*func)(data.toString());
         });
     }
 
     template<typename T>
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         T* instance, void(T::*func)(int)) {
-        receive(receiver, msgName, [instance, func](const QVariant& data) {
+        Receive(receiver, msgName, [instance, func](const QVariant& data) {
             (instance->*func)(data.toInt());
         });
     }
 
     template<typename T>
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         T* instance, void(T::*func)(double)) {
-        receive(receiver, msgName, [instance, func](const QVariant& data) {
+        Receive(receiver, msgName, [instance, func](const QVariant& data) {
             (instance->*func)(data.toDouble());
         });
     }
 
     template<typename T>
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         T* instance, void(T::*func)(bool)) {
-        receive(receiver, msgName, [instance, func](const QVariant& data) {
+        Receive(receiver, msgName, [instance, func](const QVariant& data) {
             (instance->*func)(data.toBool());
         });
     }
 
     template<typename T>
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         T* instance, void(T::*func)(const QByteArray&)) {
-        receive(receiver, msgName, [instance, func](const QVariant& data) {
+        Receive(receiver, msgName, [instance, func](const QVariant& data) {
             (instance->*func)(data.toByteArray());
         });
     }
 
     template<typename T>
-    static void receive(QObject *receiver, const QString &msgName,
+    static void Receive(QObject *receiver, const QString &msgName,
                         T* instance, void(T::*func)(const QVariantList&)) {
-        receive(receiver, msgName, [instance, func](const QVariant& data) {
+        Receive(receiver, msgName, [instance, func](const QVariant& data) {
             (instance->*func)(data.toList());
         });
     }
@@ -147,7 +147,7 @@ public:
      *       只注销该 (receiver, msgName) 条目，不影响其他 receiver 的同名消息。
      * @note 跨线程调用时，回调仍会在 receiver 所在线程执行。
      */
-    static void receiveOnce(QObject *receiver, const QString &msgName,
+    static void ReceiveOnce(QObject *receiver, const QString &msgName,
                             std::function<void(const QVariant&)> callback);
 
     /**
@@ -156,7 +156,7 @@ public:
      * @param msgName  消息名称
      * @param callback 无参回调函数
      */
-    static void receiveOnce(QObject *receiver, const QString &msgName,
+    static void ReceiveOnce(QObject *receiver, const QString &msgName,
                             std::function<void()> callback);
 
     // ---------- 清理接口 ----------
@@ -165,13 +165,13 @@ public:
      * @param msgName 消息名称
      * @note 所有监听该消息的 receiver 都会失去响应，慎用
      */
-    static void clear(const QString &msgName);
+    static void Clear(const QString &msgName);
 
     /**
      * @brief 清空所有消息的所有回调
      * @note 总线进入空状态，所有监听全部失效
      */
-    static void clearAll();
+    static void ClearAll();
 
     /**
      * @brief 批量清理：删除指定对象的所有回调（所有消息）
@@ -179,7 +179,7 @@ public:
      * @note 通常不需要手动调用，对象销毁时会自动清理。
      *       但可用于主动断开某对象与总线的所有连接。
      */
-    static void reset(QObject* obj);
+    static void Reset(QObject* obj);
 
     /**
      * @brief 清理指定对象在某一条消息上的回调
@@ -188,7 +188,7 @@ public:
      * @note 只删除匹配 (obj, msgName) 的回调条目，
      *       如果该消息下该对象有多个回调，会全部删除。
      */
-    static void off(QObject* obj, const QString& msgName);
+    static void Off(QObject* obj, const QString& msgName);
 
     // ---------- 临时屏蔽接口 ----------
     /**
@@ -198,7 +198,7 @@ public:
      *       适用于 UI 界面暂时不可交互的场景，避免恢复时需要重新注册。
      * @see unblockReceiver, isReceiverBlocked
      */
-    static void blockReceiver(QObject *receiver);
+    static void BlockReceiver(QObject *receiver);
 
     /**
      * @brief 解除屏蔽，恢复对象的所有回调
@@ -207,7 +207,7 @@ public:
      *       不会影响屏蔽期间遗漏的消息（消息不会积压）。
      * @see blockReceiver, isReceiverBlocked
      */
-    static void unblockReceiver(QObject *receiver);
+    static void UnblockReceiver(QObject *receiver);
 
     /**
      * @brief 检查对象是否被屏蔽
@@ -215,7 +215,7 @@ public:
      * @return true 表示被屏蔽，false 表示未屏蔽或对象为空
      * @see blockReceiver, unblockReceiver
      */
-    static bool isReceiverBlocked(QObject *receiver);
+    static bool IsReceiverBlocked(QObject *receiver);
 
     // ==============================
     // 内部实现（私有）

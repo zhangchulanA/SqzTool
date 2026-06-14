@@ -1,6 +1,7 @@
 
 
 HEADERS += \
+    $$PWD/other/ChainBranch.h \
     $$PWD/other/FormValidator.h \
     $$PWD/other/SafeTimer.h \
     $$PWD/other/Singleton.h \
@@ -18,6 +19,7 @@ HEADERS += \
     $$PWD/utils/TimerUtils.h
 
 SOURCES += \
+    $$PWD/other/ChainBranch.cpp \
     $$PWD/other/FormValidator.cpp \
     $$PWD/other/SqzPluginInterface.cpp \
     $$PWD/other/SqzPluginManager.cpp \
