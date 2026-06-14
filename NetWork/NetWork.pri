@@ -1,11 +1,11 @@
 
 HEADERS += \
-    $$PWD/UdpServer.h \
-    $$PWD/easytcpclient.h \
-    $$PWD/easyudpfilesender.h
+    $$PWD/SqzTcpClient.h \
+    $$PWD/SqzUdpSocket.h \
+    $$PWD/UdpServer.h
 
 SOURCES += \
-    $$PWD/UdpServer.cpp \
-    $$PWD/easytcpclient.cpp \
-    $$PWD/easyudpfilesender.cpp
+    $$PWD/SqzTcpClient.cpp \
+    $$PWD/SqzUdpSocket.cpp \
+    $$PWD/UdpServer.cpp
 
