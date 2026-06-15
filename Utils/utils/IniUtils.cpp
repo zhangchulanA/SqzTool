@@ -12,8 +12,10 @@ IniUtils::IniUtils(const QString& filePath, bool autoSync)
     : m_filePath(filePath)
     , m_autoSync(autoSync)
 {
+    // 创建 QSettings 对象，指定 INI 格式
     m_pSettings = new QSettings(filePath, QSettings::IniFormat);
 
+    // 设置 UTF-8 编码，确保中文等非 ASCII 字符正确读写
     QTextCodec* codec = QTextCodec::codecForName("UTF-8");
     if (codec) {
         m_pSettings->setIniCodec(codec);
@@ -52,16 +54,20 @@ void IniUtils::reloadFile()
 {
     QMutexLocker locker(&m_mutex);
 
+    // 暂存旧的自动同步标志
     bool oldAutoSync = m_autoSync;
 
+    // 重建 QSettings 对象以重新从磁盘加载文件
     delete m_pSettings;
     m_pSettings = new QSettings(m_filePath, QSettings::IniFormat);
 
+    // 重新设置 UTF-8 编码
     QTextCodec* codec = QTextCodec::codecForName("UTF-8");
     if (codec) {
         m_pSettings->setIniCodec(codec);
     }
 
+    // 恢复自动同步标志
     m_autoSync = oldAutoSync;
 }
 
@@ -73,7 +79,7 @@ void IniUtils::syncToFile()
 
 void IniUtils::flush()
 {
-    syncToFile();
+    syncToFile();   // 与 syncToFile 行为完全一致
 }
 
 void IniUtils::doSyncToFile()
@@ -93,6 +99,7 @@ bool IniUtils::backupFile(const QString& backupPath)
         }
         doSyncToFile();
     }
+    // 执行文件拷贝
     return QFile::copy(m_filePath, backupPath);
 }
 
@@ -114,6 +121,7 @@ bool IniUtils::autoSync() const
 
 void IniUtils::doWriteString(const QString& group, const QString& key, const QString& value)
 {
+    // 直接写入 QSettings（组/键 拼接）
     m_pSettings->setValue(QString("%1/%2").arg(group, key), value);
     if (m_autoSync) {
         doSyncToFile();
@@ -264,6 +272,26 @@ bool IniUtils::isKeyExist(const QString& group, const QString& key) const
 {
     QMutexLocker locker(&m_mutex);
     return m_pSettings->contains(QString("%1/%2").arg(group, key));
+}
+
+QMap<QString, QMap<QString, QString>> IniUtils::getAllData() const
+{
+    QMutexLocker locker(&m_mutex);
+    QMap<QString, QMap<QString, QString>> allData;
+
+    QStringList groups = m_pSettings->childGroups();
+    for (const QString& group : groups) {
+        m_pSettings->beginGroup(group);
+        QStringList keys = m_pSettings->childKeys();
+        QMap<QString, QString> keyValues;
+        for (const QString& key : keys) {
+            keyValues.insert(key, m_pSettings->value(key).toString());
+        }
+        m_pSettings->endGroup();
+        allData.insert(group, keyValues);
+    }
+
+    return allData;
 }
 
 // ==============================================

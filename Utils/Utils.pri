@@ -8,6 +8,7 @@ HEADERS += \
     $$PWD/other/SqzPluginInterface.h \
     $$PWD/other/SqzPluginManager.h \
     $$PWD/other/SqzThreadPool.h \
+    $$PWD/other/TimeoutKeeper.h \
     $$PWD/translator/SqzTranslator.h \
     $$PWD/translator/SqzTranslatorMask.h \
     $$PWD/utils/FileUtils.h \
@@ -25,6 +26,7 @@ SOURCES += \
     $$PWD/other/SqzPluginManager.cpp \
     $$PWD/other/Singleton.cpp \
     $$PWD/other/SqzThreadPool.cpp \
+    $$PWD/other/TimeoutKeeper.cpp \
     $$PWD/translator/SqzTranslator.cpp \
     $$PWD/translator/SqzTranslatorMask.cpp \
     $$PWD/utils/FileUtils.cpp \
