@@ -1,27 +1,27 @@
-#include "SqzUdpSocket.h"
+#include "UdpSocket.h"
 #include <QDataStream>
 #include <QDir>
 #include <QFileInfo>
 #include <QNetworkDatagram>
 #include <QTimer>
 
-SqzUdpSocket::SqzUdpSocket(QObject *parent)
+UdpSocket::UdpSocket(QObject *parent)
     : QObject(parent)
 {
-    connect(&m_socket, &QUdpSocket::readyRead, this, &SqzUdpSocket::onReadyRead);
+    connect(&m_socket, &QUdpSocket::readyRead, this, &UdpSocket::onReadyRead);
 }
 
-SqzUdpSocket::~SqzUdpSocket()
+UdpSocket::~UdpSocket()
 {
     delete m_sendFile;
 }
 
-bool SqzUdpSocket::bind(quint16 port, QUdpSocket::BindMode mode)
+bool UdpSocket::bind(quint16 port, QUdpSocket::BindMode mode)
 {
     return m_socket.bind(port, mode);
 }
 
-void SqzUdpSocket::sendDatagram(const QByteArray &data, const QHostAddress &addr, quint16 port)
+void UdpSocket::sendDatagram(const QByteArray &data, const QHostAddress &addr, quint16 port)
 {
     QByteArray packet;
     packet.append(char(0x00));   // 类型 0x00 = 普通消息
@@ -29,7 +29,7 @@ void SqzUdpSocket::sendDatagram(const QByteArray &data, const QHostAddress &addr
     m_socket.writeDatagram(packet, addr, port);
 }
 
-void SqzUdpSocket::sendFile(const QString &filePath, const QHostAddress &addr, quint16 port)
+void UdpSocket::sendFile(const QString &filePath, const QHostAddress &addr, quint16 port)
 {
     if (m_sendFile) {
         emit fileSendFinished(false, tr("Already sending a file"));
@@ -60,17 +60,17 @@ void SqzUdpSocket::sendFile(const QString &filePath, const QHostAddress &addr, q
     sendNextChunk();
 }
 
-void SqzUdpSocket::cancelFileSend()
+void UdpSocket::cancelFileSend()
 {
     m_cancelSend = true;
 }
 
-void SqzUdpSocket::onReadyRead()
+void UdpSocket::onReadyRead()
 {
     processPendingDatagrams();
 }
 
-void SqzUdpSocket::processPendingDatagrams()
+void UdpSocket::processPendingDatagrams()
 {
     while (m_socket.hasPendingDatagrams()) {
         QNetworkDatagram dg = m_socket.receiveDatagram();
@@ -144,7 +144,7 @@ void SqzUdpSocket::processPendingDatagrams()
     }
 }
 
-void SqzUdpSocket::sendNextChunk()
+void UdpSocket::sendNextChunk()
 {
     if (m_cancelSend) {
         if (m_sendFile) {
@@ -183,5 +183,5 @@ void SqzUdpSocket::sendNextChunk()
     m_sendFileSent += chunk.size();
     emit fileSendProgress(m_sendFileSent, m_sendFileTotal);
 
-    QTimer::singleShot(0, this, &SqzUdpSocket::sendNextChunk);
+    QTimer::singleShot(0, this, &UdpSocket::sendNextChunk);
 }

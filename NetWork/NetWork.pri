@@ -1,11 +1,15 @@
 
 HEADERS += \
-    $$PWD/SqzTcpClient.h \
-    $$PWD/SqzUdpSocket.h \
-    $$PWD/UdpServer.h
+    $$PWD/HttpClient.h \
+    $$PWD/RadioUdpManager.h \
+    $$PWD/TcpClient.h \
+    $$PWD/UdpServer.h \
+    $$PWD/UdpSocket.h
 
 SOURCES += \
-    $$PWD/SqzTcpClient.cpp \
-    $$PWD/SqzUdpSocket.cpp \
-    $$PWD/UdpServer.cpp
+    $$PWD/HttpClient.cpp \
+    $$PWD/RadioUdpManager.cpp \
+    $$PWD/TcpClient.cpp \
+    $$PWD/UdpServer.cpp \
+    $$PWD/UdpSocket.cpp
 

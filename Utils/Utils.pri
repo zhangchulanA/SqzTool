@@ -3,11 +3,12 @@
 HEADERS += \
     $$PWD/other/ChainBranch.h \
     $$PWD/other/FormValidator.h \
+    $$PWD/other/PluginInterface.h \
+    $$PWD/other/PluginManager.h \
+    $$PWD/other/Random.h \
     $$PWD/other/SafeTimer.h \
     $$PWD/other/Singleton.h \
-    $$PWD/other/SqzPluginInterface.h \
-    $$PWD/other/SqzPluginManager.h \
-    $$PWD/other/SqzThreadPool.h \
+    $$PWD/other/ThreadPool.h \
     $$PWD/other/TimeoutKeeper.h \
     $$PWD/translator/SqzTranslator.h \
     $$PWD/translator/SqzTranslatorMask.h \
@@ -22,10 +23,11 @@ HEADERS += \
 SOURCES += \
     $$PWD/other/ChainBranch.cpp \
     $$PWD/other/FormValidator.cpp \
-    $$PWD/other/SqzPluginInterface.cpp \
-    $$PWD/other/SqzPluginManager.cpp \
+    $$PWD/other/PluginInterface.cpp \
+    $$PWD/other/PluginManager.cpp \
+    $$PWD/other/Random.cpp \
     $$PWD/other/Singleton.cpp \
-    $$PWD/other/SqzThreadPool.cpp \
+    $$PWD/other/ThreadPool.cpp \
     $$PWD/other/TimeoutKeeper.cpp \
     $$PWD/translator/SqzTranslator.cpp \
     $$PWD/translator/SqzTranslatorMask.cpp \

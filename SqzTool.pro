@@ -66,13 +66,19 @@ include(Utils/Utils.pri)
 include(NetWork/NetWork.pri)
 
 SOURCES += \
+    SqzViewTest.cpp \
+    SqzViewTest2.cpp \
     TestWidget.cpp \
     main.cpp
 
 HEADERS += \
+    SqzViewTest.h \
+    SqzViewTest2.h \
     TestWidget.h
 
 FORMS += \
+    SqzViewTest.ui \
+    SqzViewTest2.ui \
     TestWidget.ui
 
 # Default rules for deployment.

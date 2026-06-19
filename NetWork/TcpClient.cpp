@@ -1,4 +1,4 @@
-#include "SqzTcpClient.h"
+#include "TcpClient.h"
 
 #include <QThread>
 
@@ -8,17 +8,17 @@
 #include <QDateTime>
 #include <QThread>
 
-SqzTcpClientWorker::SqzTcpClientWorker(QObject *parent)
+TcpClientWorker::TcpClientWorker(QObject *parent)
     : QObject(parent)
 {
 }
 
-SqzTcpClientWorker::~SqzTcpClientWorker()
+TcpClientWorker::~TcpClientWorker()
 {
     delete m_socket;
 }
 
-void SqzTcpClientWorker::doConnect(const QString &host, quint16 port)
+void TcpClientWorker::doConnect(const QString &host, quint16 port)
 {
     if (m_socket) {
         m_socket->deleteLater();
@@ -28,26 +28,26 @@ void SqzTcpClientWorker::doConnect(const QString &host, quint16 port)
 
     // 连接信号（注意 error 信号重载，使用 QOverload）
     connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
-            this, &SqzTcpClientWorker::onSocketError);
-    connect(m_socket, &QTcpSocket::connected, this, &SqzTcpClientWorker::onSocketConnected);
-    connect(m_socket, &QTcpSocket::disconnected, this, &SqzTcpClientWorker::onSocketDisconnected);
-    connect(m_socket, &QTcpSocket::readyRead, this, &SqzTcpClientWorker::onReadyRead);
+            this, &TcpClientWorker::onSocketError);
+    connect(m_socket, &QTcpSocket::connected, this, &TcpClientWorker::onSocketConnected);
+    connect(m_socket, &QTcpSocket::disconnected, this, &TcpClientWorker::onSocketDisconnected);
+    connect(m_socket, &QTcpSocket::readyRead, this, &TcpClientWorker::onReadyRead);
 
     m_socket->connectToHost(host, port);
 }
 
-void SqzTcpClientWorker::doDisconnect()
+void TcpClientWorker::doDisconnect()
 {
     if (m_socket)
         m_socket->disconnectFromHost();
 }
 
-bool SqzTcpClientWorker::isConnected() const
+bool TcpClientWorker::isConnected() const
 {
     return m_socket && m_socket->state() == QTcpSocket::ConnectedState;
 }
 
-void SqzTcpClientWorker::setAutoReconnect(bool enable, int intervalMs)
+void TcpClientWorker::setAutoReconnect(bool enable, int intervalMs)
 {
     m_autoReconnect = enable;
     m_reconnectInterval = intervalMs;
@@ -55,20 +55,20 @@ void SqzTcpClientWorker::setAutoReconnect(bool enable, int intervalMs)
     if (enable && !m_reconnectTimer) {
         m_reconnectTimer = new QTimer(this);
         m_reconnectTimer->setSingleShot(true);
-        connect(m_reconnectTimer, &QTimer::timeout, this, &SqzTcpClientWorker::doReconnect);
+        connect(m_reconnectTimer, &QTimer::timeout, this, &TcpClientWorker::doReconnect);
     } else if (!enable && m_reconnectTimer) {
         delete m_reconnectTimer;
         m_reconnectTimer = nullptr;
     }
 }
 
-void SqzTcpClientWorker::setChunkSize(qint64 chunkSize)
+void TcpClientWorker::setChunkSize(qint64 chunkSize)
 {
     if (chunkSize > 0)
         m_chunkSize = chunkSize;
 }
 
-void SqzTcpClientWorker::doSend(const QByteArray &data)
+void TcpClientWorker::doSend(const QByteArray &data)
 {
     if (!m_socket || m_socket->state() != QTcpSocket::ConnectedState) {
         m_pendingSends.enqueue(data);
@@ -86,7 +86,7 @@ void SqzTcpClientWorker::doSend(const QByteArray &data)
     m_socket->write(packet);
 }
 
-void SqzTcpClientWorker::doSendFile(const QString &filePath)
+void TcpClientWorker::doSendFile(const QString &filePath)
 {
     if (m_fileSendActive) {
         emit fileSendFinished(false, tr("Already sending a file"));
@@ -117,13 +117,13 @@ void SqzTcpClientWorker::doSendFile(const QString &filePath)
     startNextChunk();
 }
 
-void SqzTcpClientWorker::cancelSendFile()
+void TcpClientWorker::cancelSendFile()
 {
     m_cancelSend = true;
 }
 
 // ---------- 私有槽函数 ----------
-void SqzTcpClientWorker::onSocketConnected()
+void TcpClientWorker::onSocketConnected()
 {
     // 发送积压的消息
     while (!m_pendingSends.isEmpty())
@@ -134,32 +134,32 @@ void SqzTcpClientWorker::onSocketConnected()
         m_reconnectTimer->stop();
 }
 
-void SqzTcpClientWorker::onSocketDisconnected()
+void TcpClientWorker::onSocketDisconnected()
 {
     emit disconnected();
     if (m_autoReconnect && m_reconnectTimer && !m_reconnectTimer->isActive())
         m_reconnectTimer->start(m_reconnectInterval);
 }
 
-void SqzTcpClientWorker::onSocketError(QAbstractSocket::SocketError)
+void TcpClientWorker::onSocketError(QAbstractSocket::SocketError)
 {
     emit error(m_socket ? m_socket->errorString() : tr("Socket error"));
 }
 
-void SqzTcpClientWorker::onReadyRead()
+void TcpClientWorker::onReadyRead()
 {
     m_recvBuffer.append(m_socket->readAll());
     tryExtractMessages();
 }
 
-void SqzTcpClientWorker::doReconnect()
+void TcpClientWorker::doReconnect()
 {
     if (m_socket && m_socket->state() != QTcpSocket::ConnectedState) {
         m_socket->connectToHost(m_socket->peerName(), m_socket->peerPort());
     }
 }
 
-void SqzTcpClientWorker::startNextChunk()
+void TcpClientWorker::startNextChunk()
 {
     if (m_cancelSend) {
         finishFileSend(false, tr("Cancelled by user"));
@@ -189,10 +189,10 @@ void SqzTcpClientWorker::startNextChunk()
     emit fileProgress(m_fileSentBytes, m_fileTotalBytes);
 
     // 递归发送下一块，使用单次定时器避免深度递归
-    QTimer::singleShot(0, this, &SqzTcpClientWorker::startNextChunk);
+    QTimer::singleShot(0, this, &TcpClientWorker::startNextChunk);
 }
 
-void SqzTcpClientWorker::finishFileSend(bool success, const QString &err)
+void TcpClientWorker::finishFileSend(bool success, const QString &err)
 {
     m_fileSendActive = false;
     if (m_file) {
@@ -203,7 +203,7 @@ void SqzTcpClientWorker::finishFileSend(bool success, const QString &err)
     emit fileSendFinished(success, err);
 }
 
-void SqzTcpClientWorker::tryExtractMessages()
+void TcpClientWorker::tryExtractMessages()
 {
     while (true) {
         if (m_recvBuffer.size() < 4)
@@ -238,7 +238,7 @@ void SqzTcpClientWorker::tryExtractMessages()
     }
 }
 
-void SqzTcpClientWorker::handleFileMeta(const QByteArray &data)
+void TcpClientWorker::handleFileMeta(const QByteArray &data)
 {
     QDataStream ds(data);
     ds.setByteOrder(QDataStream::BigEndian);
@@ -260,7 +260,7 @@ void SqzTcpClientWorker::handleFileMeta(const QByteArray &data)
     m_recvChunkSize = chunkSize;   // 记录对端使用的块大小（仅用于信息）
 }
 
-void SqzTcpClientWorker::handleFileChunk(const QByteArray &data)
+void TcpClientWorker::handleFileChunk(const QByteArray &data)
 {
     if (!m_recvFile)
         return;
@@ -286,30 +286,30 @@ void SqzTcpClientWorker::handleFileChunk(const QByteArray &data)
 
 
 
-SqzTcpClient::SqzTcpClient(QObject *parent)
+TcpClient::TcpClient(QObject *parent)
     : QObject(parent)
 {
     m_thread = new QThread(this);
-    m_worker = new SqzTcpClientWorker();
+    m_worker = new TcpClientWorker();
 
     // 将 Worker 移动到子线程
     m_worker->moveToThread(m_thread);
 
     // 连接 Worker 信号到本类的转发槽函数（队列连接，保证线程安全）
-    connect(m_worker, &SqzTcpClientWorker::messageReady,
-            this, &SqzTcpClient::onWorkerMessageReady, Qt::QueuedConnection);
-    connect(m_worker, &SqzTcpClientWorker::connected,
-            this, &SqzTcpClient::onWorkerConnected, Qt::QueuedConnection);
-    connect(m_worker, &SqzTcpClientWorker::disconnected,
-            this, &SqzTcpClient::onWorkerDisconnected, Qt::QueuedConnection);
-    connect(m_worker, &SqzTcpClientWorker::error,
-            this, &SqzTcpClient::onWorkerError, Qt::QueuedConnection);
-    connect(m_worker, &SqzTcpClientWorker::fileProgress,
-            this, &SqzTcpClient::onWorkerFileProgress, Qt::QueuedConnection);
-    connect(m_worker, &SqzTcpClientWorker::fileSendFinished,
-            this, &SqzTcpClient::onWorkerFileFinished, Qt::QueuedConnection);
-    connect(m_worker, &SqzTcpClientWorker::fileReceived,
-            this, &SqzTcpClient::fileReceived, Qt::QueuedConnection);
+    connect(m_worker, &TcpClientWorker::messageReady,
+            this, &TcpClient::onWorkerMessageReady, Qt::QueuedConnection);
+    connect(m_worker, &TcpClientWorker::connected,
+            this, &TcpClient::onWorkerConnected, Qt::QueuedConnection);
+    connect(m_worker, &TcpClientWorker::disconnected,
+            this, &TcpClient::onWorkerDisconnected, Qt::QueuedConnection);
+    connect(m_worker, &TcpClientWorker::error,
+            this, &TcpClient::onWorkerError, Qt::QueuedConnection);
+    connect(m_worker, &TcpClientWorker::fileProgress,
+            this, &TcpClient::onWorkerFileProgress, Qt::QueuedConnection);
+    connect(m_worker, &TcpClientWorker::fileSendFinished,
+            this, &TcpClient::onWorkerFileFinished, Qt::QueuedConnection);
+    connect(m_worker, &TcpClientWorker::fileReceived,
+            this, &TcpClient::fileReceived, Qt::QueuedConnection);
 
     // 启动子线程
     m_thread->start();
@@ -319,13 +319,13 @@ SqzTcpClient::SqzTcpClient(QObject *parent)
                               Qt::QueuedConnection, Q_ARG(qint64, m_chunkSize));
 }
 
-SqzTcpClient::~SqzTcpClient()
+TcpClient::~TcpClient()
 {
     m_thread->quit();
     m_thread->wait();
 }
 
-void SqzTcpClient::connectToHost(const QString &host, quint16 port)
+void TcpClient::connectToHost(const QString &host, quint16 port)
 {
     QMetaObject::invokeMethod(m_worker, "doConnect",
                               Qt::QueuedConnection,
@@ -333,12 +333,12 @@ void SqzTcpClient::connectToHost(const QString &host, quint16 port)
                               Q_ARG(quint16, port));
 }
 
-void SqzTcpClient::disconnect()
+void TcpClient::disconnect()
 {
     QMetaObject::invokeMethod(m_worker, "doDisconnect", Qt::QueuedConnection);
 }
 
-bool SqzTcpClient::isConnected() const
+bool TcpClient::isConnected() const
 {
     bool result = false;
     QMetaObject::invokeMethod(m_worker, "isConnected",
@@ -347,7 +347,7 @@ bool SqzTcpClient::isConnected() const
     return result;
 }
 
-void SqzTcpClient::setAutoReconnect(bool enable, int intervalMs)
+void TcpClient::setAutoReconnect(bool enable, int intervalMs)
 {
     QMetaObject::invokeMethod(m_worker, "setAutoReconnect",
                               Qt::QueuedConnection,
@@ -355,7 +355,7 @@ void SqzTcpClient::setAutoReconnect(bool enable, int intervalMs)
                               Q_ARG(int, intervalMs));
 }
 
-void SqzTcpClient::setFileChunkSize(qint64 chunkSize)
+void TcpClient::setFileChunkSize(qint64 chunkSize)
 {
     if (chunkSize <= 0)
         return;
@@ -367,52 +367,52 @@ void SqzTcpClient::setFileChunkSize(qint64 chunkSize)
     }
 }
 
-void SqzTcpClient::send(const QByteArray &data)
+void TcpClient::send(const QByteArray &data)
 {
     QMetaObject::invokeMethod(m_worker, "doSend",
                               Qt::QueuedConnection,
                               Q_ARG(QByteArray, data));
 }
 
-void SqzTcpClient::sendFile(const QString &filePath)
+void TcpClient::sendFile(const QString &filePath)
 {
     QMetaObject::invokeMethod(m_worker, "doSendFile",
                               Qt::QueuedConnection,
                               Q_ARG(QString, filePath));
 }
 
-void SqzTcpClient::cancelFileSend()
+void TcpClient::cancelFileSend()
 {
     QMetaObject::invokeMethod(m_worker, "cancelSendFile", Qt::QueuedConnection);
 }
 
 // ---------- 转发槽函数 ----------
-void SqzTcpClient::onWorkerMessageReady(const QByteArray &msg)
+void TcpClient::onWorkerMessageReady(const QByteArray &msg)
 {
     emit dataReceived(msg);
 }
 
-void SqzTcpClient::onWorkerConnected()
+void TcpClient::onWorkerConnected()
 {
     emit connected();
 }
 
-void SqzTcpClient::onWorkerDisconnected()
+void TcpClient::onWorkerDisconnected()
 {
     emit disconnected();
 }
 
-void SqzTcpClient::onWorkerError(const QString &err)
+void TcpClient::onWorkerError(const QString &err)
 {
     emit errorOccurred(err);
 }
 
-void SqzTcpClient::onWorkerFileProgress(qint64 sent, qint64 total)
+void TcpClient::onWorkerFileProgress(qint64 sent, qint64 total)
 {
     emit fileProgress(sent, total);
 }
 
-void SqzTcpClient::onWorkerFileFinished(bool success, const QString &err)
+void TcpClient::onWorkerFileFinished(bool success, const QString &err)
 {
     emit fileSendFinished(success, err);
 }

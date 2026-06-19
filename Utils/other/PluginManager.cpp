@@ -1,32 +1,32 @@
-#include "SqzPluginManager.h"
+#include "PluginManager.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QDebug>
 
-SqzPluginManager& SqzPluginManager::GetInstance()
+PluginManager& PluginManager::GetInstance()
 {
-    static SqzPluginManager ins;
+    static PluginManager ins;
     return ins;
 }
 
-SqzPluginManager::SqzPluginManager(QObject *parent)
+PluginManager::PluginManager(QObject *parent)
     : QObject(parent)
 {
 
 }
 
-SqzPluginManager::~SqzPluginManager()
+PluginManager::~PluginManager()
 {
     unloadAllPlugins();
 }
 
-void SqzPluginManager::setPluginDir(const QString &dir)
+void PluginManager::setPluginDir(const QString &dir)
 {
     m_pluginDir = dir;
 }
 
 // 预扫描：只读取插件名字，不常驻加载
-bool SqzPluginManager::scanPluginMeta()
+bool PluginManager::scanPluginMeta()
 {
     QDir dir(m_pluginDir);
     if(!dir.exists())
@@ -65,7 +65,7 @@ bool SqzPluginManager::scanPluginMeta()
         }
 
         QObject* obj = tempLoader.instance();
-        SqzPluginInterface* plug = qobject_cast<SqzPluginInterface*>(obj);
+        PluginInterface* plug = qobject_cast<PluginInterface*>(obj);
         if(!plug)
         {
             tempLoader.unload();
@@ -86,7 +86,7 @@ bool SqzPluginManager::scanPluginMeta()
 }
 
 // 核心：按【自定义业务名】按需加载
-SqzPluginInterface* SqzPluginManager::loadPluginByBizName(const QString &bizPluginName)
+PluginInterface* PluginManager::loadPluginByBizName(const QString &bizPluginName)
 {
     // 1. 已经加载过，直接返回
     if(m_loadedPluginMap.contains(bizPluginName))
@@ -114,7 +114,7 @@ SqzPluginInterface* SqzPluginManager::loadPluginByBizName(const QString &bizPlug
     }
 
     QObject* obj = loader->instance();
-    SqzPluginInterface* plug = qobject_cast<SqzPluginInterface*>(obj);
+    PluginInterface* plug = qobject_cast<PluginInterface*>(obj);
     if(!plug)
     {
         loader->unload();
@@ -130,7 +130,7 @@ SqzPluginInterface* SqzPluginManager::loadPluginByBizName(const QString &bizPlug
 }
 
 // 按业务名卸载单个
-bool SqzPluginManager::unloadPluginByBizName(const QString &bizPluginName)
+bool PluginManager::unloadPluginByBizName(const QString &bizPluginName)
 {
     if(!m_loadedPluginMap.contains(bizPluginName))
         return false;
@@ -147,7 +147,7 @@ bool SqzPluginManager::unloadPluginByBizName(const QString &bizPluginName)
 }
 
 // 卸载全部
-void SqzPluginManager::unloadAllPlugins()
+void PluginManager::unloadAllPlugins()
 {
     auto iter = m_loadedPluginMap.begin();
     for(; iter != m_loadedPluginMap.end(); ++iter)
@@ -164,7 +164,7 @@ void SqzPluginManager::unloadAllPlugins()
 }
 
 // 查询已加载
-SqzPluginInterface* SqzPluginManager::getLoadedPluginByBizName(const QString &bizPluginName)
+PluginInterface* PluginManager::getLoadedPluginByBizName(const QString &bizPluginName)
 {
     if(m_loadedPluginMap.contains(bizPluginName))
         return m_loadedPluginMap[bizPluginName].second;

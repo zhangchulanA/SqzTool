@@ -197,6 +197,20 @@ public:
      * @usage MyData* data = (MyData*)SqzHub::Instance().CreateRawObj("MyData");
      */
     void* CreateRawObj(const QString& ClassName);
+    /**
+     * @brief 获取或创建带参数窗口单例（仅主线程可用）
+     * @param ClassName 已注册的窗口类名
+     * @return 窗口指针，失败返回 nullptr
+     * @usage QWidget* w = SqzHub::Instance().CreateWidget("LoginDialog");
+     */
+    QWidget* CreateWidgetWithArg(const QString& ClassName, const QVariantList& args);
+    /**
+     * @brief 获取或创建带参数 QObject 业务类单例
+     * @param ClassName 已注册的 QObject 类名
+     * @return 业务对象指针
+     * @usage MyService* svc = (MyService*)SqzHub::Instance().CreateObject("MyService");
+     */
+    QObject* CreateObjectWithArg(const QString& ClassName, const QVariantList& args);
 
     // ==================== 对象生命周期管理 ====================
 
@@ -221,7 +235,12 @@ public:
      * @usage SqzHub::Instance().CloseObjLater("TempDialog");
      */
     void CloseObjLater(const QString& ClassName);
-
+    /**
+     * @brief 删除临时对象
+     * @param ClassName
+     * @param ptr
+     */
+    void DeleteTemp(const QString& ClassName, void* ptr);
     /**
      * @brief 重置对象（销毁后重新创建）
      * @param ClassName 类名
@@ -243,7 +262,7 @@ public:
      * @param isQObject 是否为 QObject 派生类
      * @usage SqzHub::SafeDelete(ptr);
      */
-    static void SafeDelete(void* Ptr, bool isQObject = false);
+    static void SafeDelete(void* Ptr, bool isQObject = false, bool immediate = false);
 
     // ==================== 窗口专属操作接口 ====================
 
@@ -385,6 +404,18 @@ private:
     explicit SqzHub(QObject *parent = nullptr);
     ~SqzHub() override;
     Q_DISABLE_COPY(SqzHub)
+
+private:
+    /**
+     * @brief 内部创建核心函数，处理单例池、线程检查、注册和信号连接
+     * @param ClassName      类名（已含前缀）
+     * @param validator      验证回调，用于检查创建的对象是否满足类型要求（如 qobject_cast 检查）
+     * @param isWidget       是否窗口类型，若是则自动 show/raise/activateWindow
+     * @return 创建的对象指针（void*），失败返回 nullptr
+     */
+    void* createInternal(const QString& ClassName,
+                         std::function<bool(void*)> validator,
+                         bool isWidget);
 
     QHash<QString, ClassMeta>      m_noArgCreator;
     QHash<QString, CreatorWithArg> m_argCreator;

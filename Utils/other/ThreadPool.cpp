@@ -1,17 +1,17 @@
-#include "SqzThreadPool.h"
+#include "ThreadPool.h"
 #include <QThread>
 #include <QtConcurrent>
 
 // 全局单例（保留但不再用于实例获取，仅用于兼容可能的旧代码）
-SqzThreadPool* SqzThreadPool::m_instance = nullptr;
+ThreadPool* ThreadPool::m_instance = nullptr;
 
 /**
  * @brief 获取全局单例（C++11 Magic Static，线程安全）
- * @return SqzThreadPool* 单例指针
+ * @return ThreadPool* 单例指针
  */
-SqzThreadPool* SqzThreadPool::instance()
+ThreadPool* ThreadPool::instance()
 {
-    static SqzThreadPool inst;
+    static ThreadPool inst;
     return &inst;
 }
 
@@ -21,7 +21,7 @@ SqzThreadPool* SqzThreadPool::instance()
  * @details 初始化 Qt 全局线程池，设置最大线程数为 CPU 核心数×2（适合 IO 密集型任务），
  *          空闲线程存活时间 30 秒。
  */
-SqzThreadPool::SqzThreadPool(QObject *parent)
+ThreadPool::ThreadPool(QObject *parent)
     : QObject(parent)
     , m_taskIdGenerator(1)   // 任务 ID 从 1 开始，0 作为无效 ID
 {
@@ -34,7 +34,7 @@ SqzThreadPool::SqzThreadPool(QObject *parent)
 /**
  * @brief 析构函数：等待所有任务完成，并清理所有定时器和监听器
  */
-SqzThreadPool::~SqzThreadPool()
+ThreadPool::~ThreadPool()
 {
     waitForAllDone();  // 等待所有已提交任务完成
 
@@ -72,7 +72,7 @@ SqzThreadPool::~SqzThreadPool()
  * @brief 生成原子递增的任务 ID
  * @return 新 ID
  */
-quint64 SqzThreadPool::generateId()
+quint64 ThreadPool::generateId()
 {
     return m_taskIdGenerator.fetchAndAddRelaxed(1);
 }
@@ -83,7 +83,7 @@ quint64 SqzThreadPool::generateId()
  * @details 从 m_taskWatchers 中移除并删除 QFutureWatcher，
  *          当所有任务监听器为空时发射 allTasksFinished 信号。
  */
-void SqzThreadPool::cleanTask(quint64 id)
+void ThreadPool::cleanTask(quint64 id)
 {
     QMutexLocker lock(&m_mutex);
     if (m_taskWatchers.contains(id)) {
@@ -102,7 +102,7 @@ void SqzThreadPool::cleanTask(quint64 id)
  * @details 依次检查：延迟定时器 -> 周期定时器 -> 已提交到线程池的任务。
  *          对于已提交的任务，会先释放锁再调用 waitForFinished 以避免死锁。
  */
-bool SqzThreadPool::cancelTask(quint64 taskId)
+bool ThreadPool::cancelTask(quint64 taskId)
 {
     QMutexLocker lock(&m_mutex);
 
@@ -143,7 +143,7 @@ bool SqzThreadPool::cancelTask(quint64 taskId)
  * @param taskId 任务 ID
  * @details 如果任务 ID 不存在，立即返回。等待期间释放互斥锁，避免阻塞其他操作。
  */
-void SqzThreadPool::waitForTaskFinished(quint64 taskId)
+void ThreadPool::waitForTaskFinished(quint64 taskId)
 {
     QMutexLocker lock(&m_mutex);
     if (m_taskWatchers.contains(taskId)) {
@@ -157,7 +157,7 @@ void SqzThreadPool::waitForTaskFinished(quint64 taskId)
 /**
  * @brief 阻塞等待所有已提交的任务完成（包括队列中的和正在执行的）
  */
-void SqzThreadPool::waitForAllDone()
+void ThreadPool::waitForAllDone()
 {
     m_threadPool->waitForDone();
 }
@@ -166,7 +166,7 @@ void SqzThreadPool::waitForAllDone()
  * @brief 清空尚未开始的任务队列（谨慎使用）
  * @attention 只能清空通过 QtConcurrent::run 提交且尚未开始的任务，由于我们使用 QFutureWatcher，清空可能不完全可靠。
  */
-void SqzThreadPool::clearPending()
+void ThreadPool::clearPending()
 {
     m_threadPool->clear();
 }
@@ -176,7 +176,7 @@ void SqzThreadPool::clearPending()
  * @param taskId 周期任务 ID
  * @details 停止关联的 QTimer 并销毁。
  */
-void SqzThreadPool::cancelPeriodic(quint64 taskId)
+void ThreadPool::cancelPeriodic(quint64 taskId)
 {
     QMutexLocker lock(&m_mutex);
     if (m_periodicTimers.contains(taskId)) {
@@ -190,7 +190,7 @@ void SqzThreadPool::cancelPeriodic(quint64 taskId)
  * @brief 设置最大并发线程数
  * @param count 新线程数
  */
-void SqzThreadPool::setMaxThreadCount(int count)
+void ThreadPool::setMaxThreadCount(int count)
 {
     QMutexLocker lock(&m_mutex);
     m_threadPool->setMaxThreadCount(count);
@@ -200,7 +200,7 @@ void SqzThreadPool::setMaxThreadCount(int count)
  * @brief 获取当前最大并发线程数
  * @return int
  */
-int SqzThreadPool::maxThreadCount() const
+int ThreadPool::maxThreadCount() const
 {
     QMutexLocker lock(&m_mutex);
     return m_threadPool->maxThreadCount();
@@ -212,7 +212,7 @@ int SqzThreadPool::maxThreadCount() const
  *          由于底层 QThreadPool 无法真正暂停队列中的任务，这些任务仍然会被调度，
  *          但新任务不会再被接受。这是一种折衷，避免任务丢失。
  */
-void SqzThreadPool::pause()
+void ThreadPool::pause()
 {
     QMutexLocker lock(&m_mutex);
     if (m_paused) return;
@@ -225,7 +225,7 @@ void SqzThreadPool::pause()
 /**
  * @brief 恢复线程池：允许新任务提交
  */
-void SqzThreadPool::resume()
+void ThreadPool::resume()
 {
     QMutexLocker lock(&m_mutex);
     if (!m_paused) return;
@@ -237,7 +237,7 @@ void SqzThreadPool::resume()
  * @brief 查询暂停状态
  * @return bool
  */
-bool SqzThreadPool::isPaused() const
+bool ThreadPool::isPaused() const
 {
     QMutexLocker lock(&m_mutex);
     return m_paused;

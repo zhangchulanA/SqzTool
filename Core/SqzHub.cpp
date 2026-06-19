@@ -1,7 +1,8 @@
 #include "SqzHub.h"
 #include <QThread>
 #include <QTimer>
-
+#include "SqzView.h"
+#include "SqzService.h"
 thread_local QString SqzHub::t_prefix;
 // 构造函数
 SqzHub::SqzHub(QObject *parent) : SqzProp(parent) {}
@@ -9,19 +10,137 @@ SqzHub::SqzHub(QObject *parent) : SqzProp(parent) {}
 // 析构函数：释放所有单例对象
 SqzHub::~SqzHub()
 {
-    QWriteLocker locker(&GetFactoryLock());
-    for (auto it = m_singlePool.begin(); it != m_singlePool.end(); ++it)
+    //    QWriteLocker locker(&GetFactoryLock());
+    //    for (auto it = m_singlePool.begin(); it != m_singlePool.end(); ++it)
+    //    {
+    //        void* ptr = it.value();
+    //        if (m_noArgCreator.contains(it.key()))
+    //        {
+    //            auto& meta = m_noArgCreator[it.key()];
+    //            if (meta.deleter) meta.deleter(ptr);
+    //            else SafeDelete(ptr, meta.isQObject);
+    //        }
+    //        else SafeDelete(ptr, false);
+    //    }
+    //    m_singlePool.clear();
+    QList<void*> deleteList;
+    QList<ClassMeta> metaList;
     {
-        void* ptr = it.value();
-        if (m_noArgCreator.contains(it.key()))
-        {
-            auto& meta = m_noArgCreator[it.key()];
-            if (meta.deleter) meta.deleter(ptr);
-            else SafeDelete(ptr, meta.isQObject);
+        QWriteLocker locker(&GetFactoryLock());
+        for (auto it = m_singlePool.begin(); it != m_singlePool.end(); ++it) {
+            deleteList.append(it.value());
+            metaList.append(m_noArgCreator.value(it.key(), ClassMeta{}));
         }
-        else SafeDelete(ptr, false);
+        m_singlePool.clear();
     }
-    m_singlePool.clear();
+    for (int i = 0; i < deleteList.size(); ++i) {
+        QObject* obj = static_cast<QObject*>(deleteList[i]);
+        UnReg(obj);
+        if (obj) {
+            if (auto* view = qobject_cast<SqzView*>(obj))
+                view->onBeforeClose();
+            else if (auto* svc = qobject_cast<SqzService*>(obj))
+                svc->onBeforeClose();
+        }
+        SafeDelete(deleteList[i], metaList[i].isQObject, true);
+    }
+    m_objects.clear(); // SqzProp 的跟踪容器清理
+}
+
+void *SqzHub::createInternal(const QString &ClassName, std::function<bool (void *)> validator, bool isWidget)
+{
+    QString fullname = maybeAddThreadPrefix(ClassName);
+
+    // 1. UI 对象必须主线程
+    if (isWidget && QThread::currentThread() != QCoreApplication::instance()->thread()) {
+        logwarn << "[SqzHub] 禁止子线程操作UI：" << fullname;
+        return nullptr;
+    }
+
+    // 2. 第一次检查：池中是否已有对象
+    {
+        QReadLocker locker(&GetFactoryLock());
+        if (m_singlePool.contains(fullname)) {
+            void* existing = m_singlePool[fullname];
+            if (isWidget) {
+                QWidget* w = static_cast<QWidget*>(existing);
+                w->show(); w->raise(); w->activateWindow();
+                Reg(static_cast<QObject*>(existing)); // 确保已注册（内部有去重）
+            }
+            return existing;
+        }
+    }
+
+    // 3. 获取元数据
+    ClassMeta meta;
+    {
+        QReadLocker locker(&GetFactoryLock());
+        if (!m_noArgCreator.contains(fullname)) {
+            logwarn << "[SqzHub] 未注册类：" << fullname;
+            return nullptr;
+        }
+        meta = m_noArgCreator[fullname];
+    }
+
+    // 4. 创建对象
+    void* raw = meta.creator();
+    if (!raw) {
+        logwarn << "[SqzHub] 创建对象失败：" << fullname;
+        return nullptr;
+    }
+
+    // 5. 验证类型（若 validator 返回 false 则删除并返回）
+    if (!validator(raw)) {
+        if (meta.deleter) meta.deleter(raw);
+        else SafeDelete(raw, meta.isQObject, false);
+        logwarn << "[SqzHub] 类型转换失败：" << fullname;
+        return nullptr;
+    }
+
+    // 6. 第二次检查：可能其他线程已经创建，防止重复插入
+    {
+        QWriteLocker locker(&GetFactoryLock());
+        if (m_singlePool.contains(fullname)) {
+            // 丢弃刚创建的对象，返回已有对象
+            if (meta.deleter) meta.deleter(raw);
+            else SafeDelete(raw, meta.isQObject, false);
+            void* existing = m_singlePool[fullname];
+            if (isWidget) {
+                QWidget* w = static_cast<QWidget*>(existing);
+                w->show(); w->raise(); w->activateWindow();
+                Reg(static_cast<QObject*>(existing));
+            }
+            return existing;
+        }
+        // 存入池
+        m_singlePool[fullname] = raw;
+    }
+
+
+    if (meta.isQObject) {
+        // 7. 对于 QObject，连接 destroyed 信号自动从池移除
+        QObject* obj = static_cast<QObject*>(raw);
+        connect(obj, &QObject::destroyed, this, [=]() {
+            QWriteLocker locker(&GetFactoryLock());
+            m_singlePool.remove(fullname);
+        });
+
+        // 8. 注册到 SqzProp 的对象跟踪
+        Reg(static_cast<QObject*>(raw));
+        // 9.新增：调用 onInit
+        if (auto* view = qobject_cast<SqzView*>(obj))
+            view->onInit();
+        else if (auto* svc = qobject_cast<SqzService*>(obj))
+            svc->onInit();
+
+    }
+    // 9. 若是窗口，显示并置前
+    if (isWidget) {
+        QWidget* w = static_cast<QWidget*>(raw);
+        w->show(); w->raise(); w->activateWindow();
+    }
+
+    return raw;
 }
 
 
@@ -44,21 +163,29 @@ QString SqzHub::maybeAddThreadPrefix(const QString &className)
 
 // 注册无参类
 void SqzHub::RegisterNoArg(const QString& ClassName,
-                               std::function<void*()> Creator,
-                               std::function<void(void*)> Deleter,
-                               bool isQObject)
+                           std::function<void*()> Creator,
+                           std::function<void(void*)> Deleter,
+                           bool isQObject)
 {
     QString fullname = maybeAddThreadPrefix(ClassName);
     QWriteLocker locker(&GetFactoryLock());
-    if (!m_noArgCreator.contains(fullname))
-    {
-        ClassMeta meta{std::move(Creator), std::move(Deleter), isQObject};
+    if (!m_noArgCreator.contains(fullname)) {
+        ClassMeta meta;
+        meta.creator = std::move(Creator);
+        meta.isQObject = isQObject;
+        if (Deleter) {
+            meta.deleter = std::move(Deleter);
+        } else {
+            if (isQObject) {
+                meta.deleter = [](void* p) { static_cast<QObject*>(p)->deleteLater(); };
+            } else {
+                meta.deleter = [](void* p) { delete static_cast<char*>(p); };
+            }
+        }
         m_noArgCreator[fullname] = std::move(meta);
+    } else {
+        logwarn << "[SqzHub] 重复注册类：" << fullname;
     }
-
-
-
-    else logwarn << "[SqzHub] 重复注册类：" << fullname;
 }
 
 // 注册带参类
@@ -74,130 +201,259 @@ void SqzHub::RegisterWithArg(const QString& ClassName, CreatorWithArg Func)
 // 创建窗口单例（主线程专用）
 QWidget* SqzHub::CreateWidget(const QString& ClassName)
 {
-    QString fullname = maybeAddThreadPrefix(ClassName);
-    if (QThread::currentThread() != QCoreApplication::instance()->thread())
-    {
-        logwarn << "[SqzHub] 禁止子线程操作UI：" << fullname;
-        return nullptr;
-    }
-    {
-        QReadLocker locker(&GetFactoryLock());
-        if (m_singlePool.contains(fullname))
-        {
-            QWidget* w = static_cast<QWidget*>(m_singlePool[fullname]);
-            w->show(); w->raise(); w->activateWindow();
-            reg(w);
-            return w;
-        }
-    }
-    ClassMeta meta;
-    {
-        QReadLocker locker(&GetFactoryLock());
-        if (!m_noArgCreator.contains(fullname))
-        {
-            logwarn << "[SqzHub] 未注册类：" << fullname;
-            return nullptr;
-        }
-        meta = m_noArgCreator[fullname];
-    }
-    void* raw = meta.creator();
-    QWidget* widget = qobject_cast<QWidget*>(static_cast<QObject*>(raw));
-    if (!widget)
-    {
-        if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
-        logwarn << "[SqzHub] 类型转换失败：" << fullname;
-        return nullptr;
-    }
-    {
-        QWriteLocker locker(&GetFactoryLock());
-        if (m_singlePool.contains(fullname))
-        {
-            if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
-            QWidget* exist = static_cast<QWidget*>(m_singlePool[fullname]);
-            exist->show(); exist->raise(); exist->activateWindow();
-            reg(exist);
-            return exist;
-        }
-        m_singlePool[fullname] = widget;
-    }
-    connect(widget, &QWidget::destroyed, this, [=](){
-        QWriteLocker locker(&GetFactoryLock());
-        m_singlePool.remove(fullname);
-    });
-    widget->show(); widget->raise(); widget->activateWindow();
-    reg(widget);
-    return widget;
+    //    QString fullname = maybeAddThreadPrefix(ClassName);
+    //    if (QThread::currentThread() != QCoreApplication::instance()->thread())
+    //    {
+    //        logwarn << "[SqzHub] 禁止子线程操作UI：" << fullname;
+    //        return nullptr;
+    //    }
+    //    {
+    //        QReadLocker locker(&GetFactoryLock());
+    //        if (m_singlePool.contains(fullname))
+    //        {
+    //            QWidget* w = static_cast<QWidget*>(m_singlePool[fullname]);
+    //            w->show(); w->raise(); w->activateWindow();
+    //            Reg(w);
+    //            return w;
+    //        }
+    //    }
+    //    ClassMeta meta;
+    //    {
+    //        QReadLocker locker(&GetFactoryLock());
+    //        if (!m_noArgCreator.contains(fullname))
+    //        {
+    //            logwarn << "[SqzHub] 未注册类：" << fullname;
+    //            return nullptr;
+    //        }
+    //        meta = m_noArgCreator[fullname];
+    //    }
+    //    void* raw = meta.creator();
+    //    QWidget* widget = qobject_cast<QWidget*>(static_cast<QObject*>(raw));
+    //    if (!widget)
+    //    {
+    //        if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
+    //        logwarn << "[SqzHub] 类型转换失败：" << fullname;
+    //        return nullptr;
+    //    }
+    //    {
+    //        QWriteLocker locker(&GetFactoryLock());
+    //        if (m_singlePool.contains(fullname))
+    //        {
+    //            if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
+    //            QWidget* exist = static_cast<QWidget*>(m_singlePool[fullname]);
+    //            exist->show(); exist->raise(); exist->activateWindow();
+    //            Reg(exist);
+    //            return exist;
+    //        }
+    //        m_singlePool[fullname] = widget;
+    //    }
+    //    connect(widget, &QWidget::destroyed, this, [=](){
+    //        QWriteLocker locker(&GetFactoryLock());
+    //        m_singlePool.remove(fullname);
+    //    });
+    //    widget->show(); widget->raise(); widget->activateWindow();
+    //    Reg(widget);
+    //    return widget;
+    return static_cast<QWidget*>(createInternal(ClassName,
+                                                [](void* p) { return qobject_cast<QWidget*>(static_cast<QObject*>(p)) != nullptr; },
+    true));
 }
 
 // 创建QObject单例
 QObject* SqzHub::CreateObject(const QString& ClassName)
 {
-    QString fullname = maybeAddThreadPrefix(ClassName);
-    {
-        QReadLocker locker(&GetFactoryLock());
-        if (m_singlePool.contains(fullname))
-            return static_cast<QObject*>(m_singlePool[fullname]);
-    }
-    ClassMeta meta;
-    {
-        QReadLocker locker(&GetFactoryLock());
-        if (!m_noArgCreator.contains(fullname)) return nullptr;
-        meta = m_noArgCreator[fullname];
-    }
-    void* raw = meta.creator();
-    QObject* obj = qobject_cast<QObject*>(static_cast<QObject*>(raw));
-    if (!obj)
-    {
-        if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
-        return nullptr;
-    }
-    {
-        QWriteLocker locker(&GetFactoryLock());
-        if (m_singlePool.contains(fullname))
-        {
-            if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
-            QObject * obj = static_cast<QObject*>(m_singlePool[fullname]);
-            reg(obj);
-            return obj;
-        }
-        m_singlePool[fullname] = obj;
-    }
-    connect(obj, &QObject::destroyed, this, [=](){
-        QWriteLocker locker(&GetFactoryLock());
-        m_singlePool.remove(fullname);
-    });
-    reg(obj);
-    return obj;
+    //    QString fullname = maybeAddThreadPrefix(ClassName);
+    //    {
+    //        QReadLocker locker(&GetFactoryLock());
+    //        if (m_singlePool.contains(fullname))
+    //            return static_cast<QObject*>(m_singlePool[fullname]);
+    //    }
+    //    ClassMeta meta;
+    //    {
+    //        QReadLocker locker(&GetFactoryLock());
+    //        if (!m_noArgCreator.contains(fullname)) return nullptr;
+    //        meta = m_noArgCreator[fullname];
+    //    }
+    //    void* raw = meta.creator();
+    //    QObject* obj = qobject_cast<QObject*>(static_cast<QObject*>(raw));
+    //    if (!obj)
+    //    {
+    //        if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
+    //        return nullptr;
+    //    }
+    //    {
+    //        QWriteLocker locker(&GetFactoryLock());
+    //        if (m_singlePool.contains(fullname))
+    //        {
+    //            if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
+    //            QObject * obj = static_cast<QObject*>(m_singlePool[fullname]);
+    //            Reg(obj);
+    //            return obj;
+    //        }
+    //        m_singlePool[fullname] = obj;
+    //    }
+    //    connect(obj, &QObject::destroyed, this, [=](){
+    //        QWriteLocker locker(&GetFactoryLock());
+    //        m_singlePool.remove(fullname);
+    //    });
+    //    Reg(obj);
+    //    return obj;
+    return static_cast<QObject*>(createInternal(ClassName,
+                                                [](void* p) { return qobject_cast<QObject*>(static_cast<QObject*>(p)) != nullptr; },
+    false));
 }
 
 // 创建普通类单例
 void* SqzHub::CreateRawObj(const QString& ClassName)
 {
+    //    QString fullname = maybeAddThreadPrefix(ClassName);
+    //    {
+    //        QReadLocker locker(&GetFactoryLock());
+    //        if (m_singlePool.contains(fullname))
+    //            return m_singlePool[fullname];
+    //    }
+    //    ClassMeta meta;
+    //    {
+    //        QReadLocker locker(&GetFactoryLock());
+    //        if (!m_noArgCreator.contains(fullname)) return nullptr;
+    //        meta = m_noArgCreator[fullname];
+    //    }
+    //    void* raw = meta.creator();
+    //    if (meta.isQObject)
+    //        logwarn << "[SqzHub] 警告：" << fullname << "是QObject，建议用CreateObject";
+    //    {
+    //        QWriteLocker locker(&GetFactoryLock());
+    //        if (m_singlePool.contains(fullname))
+    //        {
+    //            if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
+    //            return m_singlePool[fullname];
+    //        }
+    //        m_singlePool[fullname] = raw;
+    //    }
+    //    return raw;
+    return createInternal(ClassName,
+                          [](void* p) { return true; }, // 任何指针都接受
+    false);
+}
+
+QWidget *SqzHub::CreateWidgetWithArg(const QString &ClassName, const QVariantList &args)
+{
     QString fullname = maybeAddThreadPrefix(ClassName);
+    if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
+        logwarn << "[SqzHub] 禁止子线程操作UI：" << fullname;
+        return nullptr;
+    }
+
+    // 检查是否已存在
     {
         QReadLocker locker(&GetFactoryLock());
-        if (m_singlePool.contains(fullname))
-            return m_singlePool[fullname];
+        if (m_singlePool.contains(fullname)) {
+            QWidget* w = static_cast<QWidget*>(m_singlePool[fullname]);
+            w->show(); w->raise(); w->activateWindow();
+            Reg(w);
+            return w;
+        }
     }
-    ClassMeta meta;
+
+    // 获取带参构造器
+    CreatorWithArg creator;
     {
         QReadLocker locker(&GetFactoryLock());
-        if (!m_noArgCreator.contains(fullname)) return nullptr;
-        meta = m_noArgCreator[fullname];
+        if (!m_argCreator.contains(fullname)) {
+            logwarn << "[SqzHub] 未注册带参类：" << fullname;
+            return nullptr;
+        }
+        creator = m_argCreator[fullname];
     }
-    void* raw = meta.creator();
-    if (meta.isQObject)
-        logwarn << "[SqzHub] 警告：" << fullname << "是QObject，建议用CreateObject";
+
+    // 创建对象
+    void* raw = creator(args);
+    if (!raw) {
+        logwarn << "[SqzHub] 带参创建对象失败：" << fullname;
+        return nullptr;
+    }
+
+    QWidget* widget = qobject_cast<QWidget*>(static_cast<QObject*>(raw));
+    if (!widget) {
+        // 若创建的不是 QWidget，需释放（假设是 QObject，用 deleteLater）
+        QObject* obj = static_cast<QObject*>(raw);
+        obj->deleteLater();
+        logwarn << "[SqzHub] 带参创建不是 QWidget：" << fullname;
+        return nullptr;
+    }
+
+    // 存入池
     {
         QWriteLocker locker(&GetFactoryLock());
-        if (m_singlePool.contains(fullname))
-        {
-            if (meta.deleter) meta.deleter(raw); else SafeDelete(raw, meta.isQObject);
-            return m_singlePool[fullname];
+        // 再次检查，防止竞态
+        if (m_singlePool.contains(fullname)) {
+            widget->deleteLater(); // 丢弃新对象
+            QWidget* existing = static_cast<QWidget*>(m_singlePool[fullname]);
+            existing->show(); existing->raise(); existing->activateWindow();
+            Reg(existing);
+            return existing;
         }
-        m_singlePool[fullname] = raw;
+        m_singlePool[fullname] = widget;
     }
-    return raw;
+
+    // 连接销毁信号
+    connect(widget, &QWidget::destroyed, this, [=]() {
+        QWriteLocker locker(&GetFactoryLock());
+        m_singlePool.remove(fullname);
+    });
+
+    Reg(widget);
+    widget->show(); widget->raise(); widget->activateWindow();
+    return widget;
+}
+
+QObject *SqzHub::CreateObjectWithArg(const QString &ClassName, const QVariantList &args)
+{
+    QString fullname = maybeAddThreadPrefix(ClassName);
+    // 检查是否已存在
+    {
+        QReadLocker locker(&GetFactoryLock());
+        if (m_singlePool.contains(fullname))
+            return static_cast<QObject*>(m_singlePool[fullname]);
+    }
+
+    CreatorWithArg creator;
+    {
+        QReadLocker locker(&GetFactoryLock());
+        if (!m_argCreator.contains(fullname)) {
+            logwarn << "[SqzHub] 未注册带参类：" << fullname;
+            return nullptr;
+        }
+        creator = m_argCreator[fullname];
+    }
+
+    void* raw = creator(args);
+    if (!raw) return nullptr;
+
+    QObject* obj = qobject_cast<QObject*>(static_cast<QObject*>(raw));
+    if (!obj) {
+        // 如果不是 QObject，释放并返回
+        delete static_cast<char*>(raw);
+        logwarn << "[SqzHub] 带参创建不是 QObject：" << fullname;
+        return nullptr;
+    }
+
+    {
+        QWriteLocker locker(&GetFactoryLock());
+        if (m_singlePool.contains(fullname)) {
+            obj->deleteLater();
+            return static_cast<QObject*>(m_singlePool[fullname]);
+        }
+        m_singlePool[fullname] = obj;
+    }
+
+    connect(obj, &QObject::destroyed, this, [=]() {
+        QWriteLocker locker(&GetFactoryLock());
+        m_singlePool.remove(fullname);
+    });
+
+    Reg(obj);
+    return obj;
 }
 
 // 判断对象是否存在
@@ -221,12 +477,17 @@ void SqzHub::CloseObj(const QString& ClassName)
         if (m_noArgCreator.contains(fullname))
             meta = m_noArgCreator[fullname];
     }
+    QObject* obj = static_cast<QObject*>(ptr);
+    UnReg(obj);
+    // ---------- 调用 onBeforeClose ----------
+    if (obj) {
+        if (auto* view = qobject_cast<SqzView*>(obj))
+            view->onBeforeClose();
+        else if (auto* svc = qobject_cast<SqzService*>(obj))
+            svc->onBeforeClose();
+    }
     if (meta.deleter) meta.deleter(ptr);
     else SafeDelete(ptr, meta.isQObject);
-
-    QObject* obj = static_cast<QObject*>(ptr);
-    unreg(obj);
-
 }
 
 // 延迟销毁对象
@@ -235,6 +496,19 @@ void SqzHub::CloseObjLater(const QString& ClassName)
     QString fullname = maybeAddThreadPrefix(ClassName);
 
     QTimer::singleShot(0, this, [=](){ CloseObj(fullname); });
+}
+
+void SqzHub::DeleteTemp(const QString &ClassName, void *ptr)
+{
+    QString fullname = maybeAddThreadPrefix(ClassName);
+    QReadLocker locker(&GetFactoryLock());
+    if (m_noArgCreator.contains(fullname)) {
+        auto& meta = m_noArgCreator[fullname];
+        if (meta.deleter) meta.deleter(ptr);
+        else SafeDelete(ptr, meta.isQObject);
+    } else {
+        logwarn << "[SqzHub] DeleteTemp：未注册类" << fullname;
+    }
 }
 
 // 重置对象（销毁+重建）
@@ -269,11 +543,18 @@ void* SqzHub::CreateTemp(const QString& ClassName)
 }
 
 // 安全释放裸指针
-void SqzHub::SafeDelete(void* Ptr, bool isQObject)
+void SqzHub::SafeDelete(void* Ptr, bool isQObject, bool immediate)
 {
     if (!Ptr) return;
-    if (isQObject) reinterpret_cast<QObject*>(Ptr)->deleteLater();
-    else delete static_cast<char*>(Ptr);
+    if (isQObject) {
+        QObject* obj = static_cast<QObject*>(Ptr);
+        if (immediate)
+            delete obj;
+        else
+            obj->deleteLater();
+    } else {
+        delete static_cast<char*>(Ptr);
+    }
 }
 
 // 隐藏窗口
@@ -423,26 +704,26 @@ void SqzHub::CloseAll()
     QList<ClassMeta> metaList;
     {
         QWriteLocker locker(&GetFactoryLock());
-        for (auto it = m_singlePool.begin(); it != m_singlePool.end(); ++it)
-        {
+        for (auto it = m_singlePool.begin(); it != m_singlePool.end(); ++it) {
             deleteList.append(it.value());
-            if (m_noArgCreator.contains(it.key()))
-                metaList.append(m_noArgCreator[it.key()]);
-            else
-                metaList.append({nullptr, nullptr, false});
+            metaList.append(m_noArgCreator.value(it.key(), ClassMeta{}));
         }
         m_singlePool.clear();
     }
-    for (int i = 0; i < deleteList.size(); ++i)
-    {
-        if (metaList[i].deleter) metaList[i].deleter(deleteList[i]);
-        else SafeDelete(deleteList[i], metaList[i].isQObject);
-
+    for (int i = 0; i < deleteList.size(); ++i) {
         QObject* obj = static_cast<QObject*>(deleteList[i]);
-        unreg(obj);
+        UnReg(obj);   // 先注销，避免后续访问
+        // ---------- 调用 onBeforeClose ----------
+        if (obj) {
+            if (auto* view = qobject_cast<SqzView*>(obj))
+                view->onBeforeClose();
+            else if (auto* svc = qobject_cast<SqzService*>(obj))
+                svc->onBeforeClose();
+        }
+        // 强制立即删除
+        SafeDelete(deleteList[i], metaList[i].isQObject, true);
     }
-
-    m_objects.clear();
+    m_objects.clear(); // 清理 SqzProp 的跟踪容器（已无有效对象）
 }
 
 // 清空注册表

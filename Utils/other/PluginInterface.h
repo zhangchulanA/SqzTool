@@ -1,6 +1,6 @@
-// SqzPluginInterface.h
-#ifndef SqzPluginInterface_H
-#define SqzPluginInterface_H
+// PluginInterface.h
+#ifndef PluginInterface_H
+#define PluginInterface_H
 
 #include <QObject>
 #include <QString>
@@ -17,10 +17,10 @@
  * @note 6. 新增通用功能直接在此类扩展纯虚函数，所有插件统一适配
  */
 
-class SqzPluginInterface :public QObject
+class PluginInterface :public QObject
 {
 public:
-    virtual ~SqzPluginInterface() = default;
+    virtual ~PluginInterface() = default;
 
     // 这个返回值：就是你【自己随便定义的插件业务名】
     virtual QString getPluginName() const = 0;
@@ -46,8 +46,8 @@ public:
     virtual QString getLastError() = 0;
 };
 
-#define SqzPluginInterface_IID "com.my.plugin.v1" //"com.my.plugin.v1"字符串自定义 每个插件唯一
-Q_DECLARE_INTERFACE(SqzPluginInterface, SqzPluginInterface_IID)
+#define PluginInterface_IID "com.my.plugin.v1" //"com.my.plugin.v1"字符串自定义 每个插件唯一
+Q_DECLARE_INTERFACE(PluginInterface, PluginInterface_IID)
 
 #endif
 

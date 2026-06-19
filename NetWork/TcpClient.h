@@ -1,5 +1,5 @@
-#ifndef SQZTCPCLIENT_H
-#define SQZTCPCLIENT_H
+#ifndef TCPCLIENT_H
+#define TCPCLIENT_H
 
 #include <QObject>
 #include <QByteArray>
@@ -15,14 +15,14 @@
  * @brief TCP 客户端的实际工作类（运行于子线程）
  *
  * 负责所有 socket 操作、文件分块发送/接收、重连逻辑。
- * 通过信号与主线程的 SqzTcpClient 通信。
+ * 通过信号与主线程的 TcpClient 通信。
  */
-class SqzTcpClientWorker : public QObject
+class TcpClientWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit SqzTcpClientWorker(QObject *parent = nullptr);
-    ~SqzTcpClientWorker();
+    explicit TcpClientWorker(QObject *parent = nullptr);
+    ~TcpClientWorker();
 
     // 以下槽函数由主线程通过 QMetaObject::invokeMethod 调用
 public slots:
@@ -95,12 +95,12 @@ private:
  * 所有网络操作均在子线程中执行，不会阻塞主线程。
  * 支持普通消息收发、文件传输（分块发送、进度回调、取消）、自动重连。
  */
-class SqzTcpClient : public QObject
+class TcpClient : public QObject
 {
     Q_OBJECT
 public:
-    explicit SqzTcpClient(QObject *parent = nullptr);
-    ~SqzTcpClient();
+    explicit TcpClient(QObject *parent = nullptr);
+    ~TcpClient();
 
     // ---------- 连接管理 ----------
     void connectToHost(const QString &host, quint16 port);
@@ -149,8 +149,8 @@ private slots:
 
 private:
     QThread *m_thread = nullptr;
-    SqzTcpClientWorker *m_worker = nullptr;
+    TcpClientWorker *m_worker = nullptr;
     qint64 m_chunkSize = 64 * 1024;   // 默认 64KB，可通过 setFileChunkSize() 修改
 };
 
-#endif // SQZTCPCLIENT_H
+#endif // TCPCLIENT_H

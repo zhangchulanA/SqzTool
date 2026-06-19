@@ -37,7 +37,7 @@
  * @section 使用示例
  * @code
  *   // 获取单例
- *   SqzThreadPool* pool = SqzThreadPool::instance();
+ *   ThreadPool* pool = ThreadPool::instance();
  *
  *   // 1. 基础任务
  *   pool->start([](){ qDebug() << "后台任务"; });
@@ -82,15 +82,15 @@
  *
  * @note 需要 C++17 支持，请在 .pro 文件中添加：CONFIG += c++17
  */
-class SqzThreadPool : public QObject
+class ThreadPool : public QObject
 {
     Q_OBJECT
 public:
     /**
      * @brief 获取全局唯一单例实例（线程安全，使用 C++11 Magic Static）
-     * @return SqzThreadPool* 单例指针，无需手动释放，程序退出时自动销毁
+     * @return ThreadPool* 单例指针，无需手动释放，程序退出时自动销毁
      */
-    static SqzThreadPool* instance();
+    static ThreadPool* instance();
 
     /**
      * @brief 任务优先级枚举（当前版本预留，暂未实现调度，但保留接口扩展）
@@ -387,12 +387,12 @@ private:
      * @details 初始化 Qt 全局线程池，设置默认最大线程数为 CPU 核心数 × 2（IO 密集型优化），
      *          空闲线程存活时间 30 秒。
      */
-    explicit SqzThreadPool(QObject* parent = nullptr);
+    explicit ThreadPool(QObject* parent = nullptr);
 
     /**
      * @brief 析构函数：等待所有任务完成，清理定时器和监听器
      */
-    ~SqzThreadPool() override;
+    ~ThreadPool() override;
 
     /**
      * @brief 生成全局唯一的任务 ID（线程安全）
@@ -431,7 +431,7 @@ private:
         Q_UNUSED(pri);  // 优先级当前未实现，保留接口
         QMutexLocker lock(&m_mutex);
         if (m_paused) {
-            qWarning() << "[SqzThreadPool] 线程池已暂停，拒绝提交新任务";
+            qWarning() << "[ThreadPool] 线程池已暂停，拒绝提交新任务";
             return 0;
         }
 
@@ -489,9 +489,9 @@ private:
                     task();
                 }
             } catch (const std::exception& e) {
-                qWarning() << "[SqzThreadPool] 任务异常:" << e.what();
+                qWarning() << "[ThreadPool] 任务异常:" << e.what();
             } catch (...) {
-                qWarning() << "[SqzThreadPool] 未知异常";
+                qWarning() << "[ThreadPool] 未知异常";
             }
         };
 
@@ -501,7 +501,7 @@ private:
     }
 
 private:
-    static SqzThreadPool* m_instance;  //!< 静态指针（保留但实际单例已改用 Magic Static，为兼容旧代码）
+    static ThreadPool* m_instance;  //!< 静态指针（保留但实际单例已改用 Magic Static，为兼容旧代码）
     QThreadPool* m_threadPool;         //!< Qt 全局线程池指针，实际执行任务的底层
     mutable QMutex m_mutex;            //!< 保护所有共享容器的互斥锁
     QAtomicInteger<quint64> m_taskIdGenerator; //!< 原子 ID 生成器（线程安全自增）

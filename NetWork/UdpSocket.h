@@ -1,5 +1,5 @@
-#ifndef SQZUDPSOCKET_H
-#define SQZUDPSOCKET_H
+#ifndef UDPSOCKET_H
+#define UDPSOCKET_H
 
 #include <QObject>
 #include <QUdpSocket>
@@ -12,12 +12,12 @@
  * 文件传输采用分片发送（默认 1400 字节/片），接收端自动重组并保存到临时目录。
  * 支持发送进度、取消发送。
  */
-class SqzUdpSocket : public QObject
+class UdpSocket : public QObject
 {
     Q_OBJECT
 public:
-    explicit SqzUdpSocket(QObject *parent = nullptr);
-    ~SqzUdpSocket();
+    explicit UdpSocket(QObject *parent = nullptr);
+    ~UdpSocket();
 
     bool bind(quint16 port, QUdpSocket::BindMode mode = QUdpSocket::DefaultForPlatform);
     void sendDatagram(const QByteArray &data, const QHostAddress &addr, quint16 port);
@@ -58,4 +58,4 @@ private:
     QMap<QString, ReceiveContext> m_receiveMap;
 };
 
-#endif // SQZUDPSOCKET_H
+#endif // UDPSOCKET_H

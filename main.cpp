@@ -6,7 +6,7 @@
 #include <QTextEdit>
 #include "SqzTranslator.h"
 #include "SqzHub.h"
-#include "SqzThreadPool.h"
+#include "ThreadPool.h"
 #include "SqzLog.h"
 #include "TimerUtils.h"
 #include "TestWidget.h"
@@ -16,6 +16,8 @@
 #include "TableBuilder.h"
 #include "ChainBranch.h"
 #include <FluentCard.h>
+#include "MsgBox.h"
+#include "SuperTableAll.h"
 
 using namespace std::chrono_literals;
 int main(int argc, char *argv[])
@@ -24,10 +26,12 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     SqzLog::instance().init("./log","chatlog",10,true);
      SqzHub::SetThreadPrefix(MODULE_PREFIX);
+    Sqz.PrintRegClass();
+//    Sqz.CreateWidget("TestWidget");
+Sqz.CreateWidget("SqzViewTest");
 
-    Sqz.CreateWidget("TestWidget");
 
-    Sqz.dump();
+
 
     return  a.exec();
 }

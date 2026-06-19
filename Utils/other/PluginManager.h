@@ -1,11 +1,11 @@
-#ifndef SqzPluginManager_H
-#define SqzPluginManager_H
+#ifndef PluginManager_H
+#define PluginManager_H
 
 #include <QObject>
 #include <QPluginLoader>
 #include <QMap>
 #include <QString>
-#include "SqzPluginInterface.h"
+#include "PluginInterface.h"
 
 /**
  * @brief 智能按需插件管理器
@@ -15,12 +15,12 @@
  * 3. 真正懒加载：用一个加载一个，不用不占内存
  * 4. 支持按业务名卸载、查询
  */
-class SqzPluginManager : public QObject
+class PluginManager : public QObject
 {
     Q_OBJECT
 public:
     // 全局单例
-    static SqzPluginManager& GetInstance();
+    static PluginManager& GetInstance();
 
     // 设置插件根目录
     void setPluginDir(const QString& dir);
@@ -29,7 +29,7 @@ public:
     bool scanPluginMeta();
 
     // 【核心】按【你自定义的业务插件名】按需加载插件
-    SqzPluginInterface* loadPluginByBizName(const QString& bizPluginName);
+    PluginInterface* loadPluginByBizName(const QString& bizPluginName);
 
     // 按业务名卸载单个插件
     bool unloadPluginByBizName(const QString& bizPluginName);
@@ -38,14 +38,14 @@ public:
     void unloadAllPlugins();
 
     // 获取已加载插件
-    SqzPluginInterface* getLoadedPluginByBizName(const QString& bizPluginName);
+    PluginInterface* getLoadedPluginByBizName(const QString& bizPluginName);
 
 private:
-    explicit SqzPluginManager(QObject *parent = nullptr);
-    ~SqzPluginManager() override;
+    explicit PluginManager(QObject *parent = nullptr);
+    ~PluginManager() override;
 
-    SqzPluginManager(const SqzPluginManager&) = delete;
-    SqzPluginManager& operator=(const SqzPluginManager&) = delete;
+    PluginManager(const PluginManager&) = delete;
+    PluginManager& operator=(const PluginManager&) = delete;
 
 private:
     QString m_pluginDir;
@@ -54,7 +54,7 @@ private:
     QMap<QString, QString> m_nameToFilePathMap;
 
     // 映射2：业务自定义名 → 加载器 + 插件实例（真正加载后才存入）
-    QMap<QString, QPair<QPluginLoader*, SqzPluginInterface*>> m_loadedPluginMap;
+    QMap<QString, QPair<QPluginLoader*, PluginInterface*>> m_loadedPluginMap;
 };
 
 #endif
