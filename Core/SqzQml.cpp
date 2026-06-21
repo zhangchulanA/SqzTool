@@ -1,44 +1,44 @@
-// SqzQuickView.cpp
-#include "SqzQuickView.h"
+// SqzQml.cpp
+#include "SqzQml.h"
 
 #include <QQmlComponent>
 
-SqzQuickView::SqzQuickView(QObject* parent) : QObject(parent) {}
-SqzQuickView::~SqzQuickView() {
+SqzQml::SqzQml(QObject* parent) : QObject(parent) {}
+SqzQml::~SqzQml() {
 
 }
 
 // ---------- 通用单例操作 ----------
-void SqzQuickView::Open(const QString& className) {
+void SqzQml::Open(const QString& className) {
     SqzHub::Instance().CreateQmlWidget(className);
 }
-void SqzQuickView::Close(const QString& className) {
+void SqzQml::Close(const QString& className) {
     SqzHub::Instance().CloseObj(className);
 }
-void SqzQuickView::CloseLater(const QString& className) {
+void SqzQml::CloseLater(const QString& className) {
     SqzHub::Instance().CloseObjLater(className);
 }
-void SqzQuickView::Reset(const QString& className) {
+void SqzQml::Reset(const QString& className) {
     SqzHub::Instance().ResetObj(className);
 }
-bool SqzQuickView::IsExist(const QString& className) const {
+bool SqzQml::IsExist(const QString& className) const {
     return SqzHub::Instance().IsExist(className);
 }
 
 // ---------- 窗口专属操作 ----------
-void SqzQuickView::Hide(const QString& className) {
+void SqzQml::Hide(const QString& className) {
     QObject* obj = SqzHub::Instance().GetQmlObject(className);
     if (obj) {
-        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        SqzQml* view = qobject_cast<SqzQml*>(obj);
         if (view && view->m_window) {
             view->m_window->hide();
         }
     }
 }
-void SqzQuickView::Show(const QString& className) {
+void SqzQml::Show(const QString& className) {
     QObject* obj = SqzHub::Instance().GetQmlObject(className);
     if (obj) {
-        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        SqzQml* view = qobject_cast<SqzQml*>(obj);
         if (view && view->m_window) {
             view->m_window->show();
             view->m_window->raise();
@@ -46,11 +46,11 @@ void SqzQuickView::Show(const QString& className) {
         }
     }
 }
-void SqzQuickView::Toggle(const QString& className) {
+void SqzQml::Toggle(const QString& className) {
     QObject* obj = SqzHub::Instance().GetQmlObject(className);
 
     if (obj) {
-        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        SqzQml* view = qobject_cast<SqzQml*>(obj);
         bool visible = obj->property("visible").toBool();
         if (visible) {
             if (view && view->m_window)
@@ -64,33 +64,33 @@ void SqzQuickView::Toggle(const QString& className) {
         }
     }
 }
-bool SqzQuickView::IsVisible(const QString& className) const {
+bool SqzQml::IsVisible(const QString& className) const {
     QObject* obj = SqzHub::Instance().GetQmlObject(className);
     if (obj) {
-        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        SqzQml* view = qobject_cast<SqzQml*>(obj);
         if (view && view->m_window) {
             return view->m_window->isVisible();
         }
     }
     return false;
 }
-void SqzQuickView::SetTop(const QString& className, bool topMost) {
+void SqzQml::SetTop(const QString& className, bool topMost) {
     QObject* obj = SqzHub::Instance().GetQmlObject(className);
     if (obj) {
-        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        SqzQml* view = qobject_cast<SqzQml*>(obj);
         if (view && view->m_window) {
             view->m_window->setFlag(Qt::WindowStaysOnTopHint, topMost);
         }
     }
 }
-void SqzQuickView::SetSize(const QString& className, int w, int h) {
+void SqzQml::SetSize(const QString& className, int w, int h) {
     QObject* obj = SqzHub::Instance().GetQmlObject(className);
     if (obj) {
         obj->setProperty("width", w);
         obj->setProperty("height", h);
     }
 }
-void SqzQuickView::SetPos(const QString& className, int x, int y) {
+void SqzQml::SetPos(const QString& className, int x, int y) {
     QObject* obj = SqzHub::Instance().GetQmlObject(className);
     if (obj) {
         obj->setProperty("x", x);
@@ -99,13 +99,13 @@ void SqzQuickView::SetPos(const QString& className, int x, int y) {
 }
 
 // ---------- 快捷操作 ----------
-void SqzQuickView::OpenSelf() { Open(className()); }
-void SqzQuickView::CloseSelf() { Close(className()); }
-void SqzQuickView::HideSelf() { Hide(className()); }
-void SqzQuickView::ShowSelf() { Show(className()); }
+void SqzQml::OpenSelf() { Open(className()); }
+void SqzQml::CloseSelf() { Close(className()); }
+void SqzQml::HideSelf() { Hide(className()); }
+void SqzQml::ShowSelf() { Show(className()); }
 
 
-void SqzQuickView::initializeView()
+void SqzQml::initializeView()
 {
     if (m_initialized) return;
 

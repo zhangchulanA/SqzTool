@@ -3,7 +3,7 @@
 #include <QTimer>
 #include "SqzView.h"
 #include "SqzService.h"
-#include "SqzQuickView.h"
+#include "SqzQml.h"
 
 
 thread_local QString SqzHub::t_prefix;
@@ -412,10 +412,10 @@ QObject *SqzHub::CreateQmlWidget(const QString &ClassName)
 
     // 类型转换
     QObject* qmlObj = static_cast<QObject*>(raw);
-    SqzQuickView* view = qobject_cast<SqzQuickView*>(qmlObj);
+    SqzQml* view = qobject_cast<SqzQml*>(qmlObj);
     if (!view) {
         meta.deleter(raw);
-        logwarn << "[SqzHub] 类型转换失败（需要 SqzQuickView）：" << fullname;
+        logwarn << "[SqzHub] 类型转换失败（需要 SqzQml）：" << fullname;
         return nullptr;
     }
     view->initializeView();
@@ -613,7 +613,7 @@ void SqzHub::CloseObj(const QString& ClassName)
             view->onBeforeClose();
         else if (auto* svc = qobject_cast<SqzService*>(obj))
             svc->onBeforeClose();
-        else if (auto* qmlView = qobject_cast<SqzQuickView*>(obj))
+        else if (auto* qmlView = qobject_cast<SqzQml*>(obj))
             qmlView->onBeforeClose();
     }
     if (meta.deleter) meta.deleter(ptr);
@@ -657,7 +657,7 @@ void SqzHub::ResetObj(const QString& ClassName)
             QObject* obj = static_cast<QObject*>(ptr);
             if (qobject_cast<QWidget*>(obj)) {
                 isWidget = true;
-            } else if (qobject_cast<SqzQuickView*>(obj)) {
+            } else if (qobject_cast<SqzQml*>(obj)) {
                 isQml = true;   // 新增 QML 判断
             } else if (qobject_cast<QObject*>(obj)) {
                 isQObj = true;
@@ -859,7 +859,7 @@ void SqzHub::CloseAll()
                 view->onBeforeClose();
             else if (auto* svc = qobject_cast<SqzService*>(obj))
                 svc->onBeforeClose();
-            else if (auto* qmlView = qobject_cast<SqzQuickView*>(obj))
+            else if (auto* qmlView = qobject_cast<SqzQml*>(obj))
                 qmlView->onBeforeClose();
         }
         // 强制立即删除
@@ -891,7 +891,7 @@ QQmlApplicationEngine *SqzHub::qmlEngine()
 {
     if (!m_qmlEngine) {
         if (!qApp) {
-            qWarning() << "No QApplication instance! Cannot create QML engine.";
+            logwarn << "No QApplication instance! Cannot create QML engine.";
             return nullptr;
         }
         m_qmlEngine.reset(new QQmlApplicationEngine());

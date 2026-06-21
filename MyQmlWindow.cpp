@@ -1,6 +1,6 @@
 #include "MyQmlWindow.h"
 
-MyQmlWindow::MyQmlWindow(QObject *parent) : SqzQuickView(parent)
+MyQmlWindow::MyQmlWindow(QObject *parent) : SqzQml(parent)
 {
 
 }

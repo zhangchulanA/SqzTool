@@ -18,7 +18,7 @@
 #include <FluentCard.h>
 #include "MsgBox.h"
 #include "SuperTableAll.h"
-
+#include "UiHelper.h"
 using namespace std::chrono_literals;
 int main(int argc, char *argv[])
 {
@@ -30,7 +30,11 @@ int main(int argc, char *argv[])
     //    Sqz.CreateWidget("TestWidget");
 //    Sqz.CreateWidget("SqzViewTest");
 
-    Sqz.CreateQmlWidget("LoginWindow");
+//    Sqz.CreateQmlWidget("LoginWindow");
+
+
+    // 右下角成功提示（默认）
+    UiHelper::showToast("保存成功", TipType::Success,ToastPos::TopLeft);
     // 运行事件循环
     int ret = a.exec();
 

@@ -2,8 +2,8 @@
 #define MYQMLWINDOW_H
 
 #include <QObject>
-#include "SqzQuickView.h"
-class MyQmlWindow : public SqzQuickView
+#include "SqzQml.h"
+class MyQmlWindow : public SqzQml
 {
     Q_OBJECT
 public:

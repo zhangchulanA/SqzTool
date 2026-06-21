@@ -2,8 +2,8 @@
 #define LOGINWINDOW_H
 
 #include <QObject>
-#include "SqzQuickView.h"
-class LoginWindow : public SqzQuickView
+#include "SqzQml.h"
+class LoginWindow : public SqzQml
 {
     Q_OBJECT
 public:

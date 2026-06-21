@@ -1,27 +1,27 @@
-// SqzQuickView.h
-#ifndef SqzQuickView_H
-#define SqzQuickView_H
+// SqzQml.h
+#ifndef SqzQml_H
+#define SqzQml_H
 
 #include <QObject>
 #include <QtQuick/QQuickView>
 #include "SqzHub.h"
 
 /**
- * @class SqzQuickView
+ * @class SqzQml
  * @brief QML 窗口界面的逻辑基类，继承自 QObject。
  *        提供与 SqzView 同名的接口（Open/Close/Hide/Show/SetTop 等），
  *        内部持有 QQuickView* 用于实际窗口操作。
  *        子类必须实现 className() 纯虚函数，并注册到 SqzHub。
  *        推荐使用 SqzHub::CreateQmlWidget() 创建单例。
  */
-class SqzQuickView : public QObject
+class SqzQml : public QObject
 {
     Q_OBJECT
     friend class SqzHub;
 
 public:
-    explicit SqzQuickView(QObject* parent = nullptr);
-    virtual ~SqzQuickView();
+    explicit SqzQml(QObject* parent = nullptr);
+    virtual ~SqzQml();
 
     // ========== 通用单例操作（与 SqzView/SqzService 同名） ==========
     void Open(const QString& className);
@@ -73,4 +73,4 @@ private:
     bool m_initialized = false;
 };
 
-#endif // SqzQuickView_H
+#endif // SqzQml_H

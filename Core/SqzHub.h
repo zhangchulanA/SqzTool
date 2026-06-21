@@ -20,7 +20,7 @@
  * SqzHub 是一个全功能的对象工厂，支持通过类名字符串动态创建三种类型的对象：
  * - QWidget 窗口（传统 Qt Widgets 界面）
  * - QObject 业务类（服务、管理器等）
- * - QML 窗口（通过 SqzQuickView 基类，支持 Qt Quick 界面）
+ * - QML 窗口（通过 SqzQml 基类，支持 Qt Quick 界面）
  *
  * 它采用单例模式管理所有对象，提供线程安全的对象池，并自动处理对象的生命周期。
  *
@@ -30,7 +30,7 @@
  * ==== 核心特性 ====
  * 1. 纯字符串操作：所有接口使用类名（QString）而非模板或类型，适合脚本化调用。
  * 2. 单例对象池：每个类全局只有一个实例，重复调用返回同一对象。
- * 3. 统一接口：SqzView/SqzService/SqzQuickView 三个基类提供完全同名的 Open/Close/Reset 等接口。
+ * 3. 统一接口：SqzView/SqzService/SqzQml 三个基类提供完全同名的 Open/Close/Reset 等接口。
  * 4. 自动类型识别：注册时通过 std::is_base_of 自动识别 QObject 派生类。
  * 5. 读写锁线程安全：读操作并发无阻塞，写操作互斥执行。
  * 6. UI线程安全：所有窗口操作自动检查主线程，子线程调用返回警告。
@@ -50,7 +50,7 @@
  * 框架提供三个基类，子类继承后自动获得统一的操作接口：
  * - SqzView    ：继承自 QWidget，用于传统 Qt Widgets 窗口
  * - SqzService ：继承自 SqzProp，用于业务服务对象
- * - SqzQuickView：继承自 QObject，用于 QML 窗口（内部持有 QQuickView）
+ * - SqzQml：继承自 QObject，用于 QML 窗口（内部持有 QQuickView）
  *
  * 三个基类提供完全同名的公共方法：
  * - Open(className)    ：创建/激活指定类名的单例
@@ -59,7 +59,7 @@
  * - Reset(className)   ：销毁后重建指定类名的单例
  * - IsExist(className) ：检查指定类名的单例是否已存在
  *
- * SqzView 和 SqzQuickView 额外提供窗口专属操作：
+ * SqzView 和 SqzQml 额外提供窗口专属操作：
  * - Hide/Show/Toggle   ：隐藏/显示/切换窗口显隐
  * - IsVisible          ：判断窗口是否可见
  * - SetTop             ：设置窗口置顶
@@ -81,7 +81,7 @@
  * // 打开 QML 窗口
  * SqzHub::Instance().CreateQmlWidget("MyQmlWindow");
  *
- * // 窗口操作（通过 SqzView 或 SqzQuickView 基类）
+ * // 窗口操作（通过 SqzView 或 SqzQml 基类）
  * SqzHub::Instance().ToggleWidget("LoginDialog");
  * SqzHub::Instance().HideWidget("LoginDialog");
  * SqzHub::Instance().SetWidgetTop("MainWindow", true);
@@ -102,7 +102,7 @@
  * }
  *
  * // QML 窗口同样支持
- * SqzQuickView* qmlView = qobject_cast<SqzQuickView*>(
+ * SqzQml* qmlView = qobject_cast<SqzQml*>(
  *     SqzHub::Instance().GetQmlObject("MyQmlWindow")
  * );
  * if (qmlView) {
@@ -147,9 +147,9 @@
  * - 静态库中使用时可能需要额外链接器选项（FORCE_LINK_THIS 已处理）。
  * - 临时对象（CreateTemp）不会自动释放，用完必须手动调用 DeleteTemp 或 SafeDelete。
  * - 带参构造类必须提供接收 QVariantList 的构造函数。
- * - QML 窗口类必须继承 SqzQuickView 并实现 className() 和 qmlSource()。
- * - SqzQuickView 子类必须在构造函数中调用 initializeView()，或由 SqzHub 自动调用。
- * - 不要在 SqzQuickView 子类的构造函数或 onInit() 中调用 OpenSelf()/CloseSelf() 等依赖虚函数的方法。
+ * - QML 窗口类必须继承 SqzQml 并实现 className() 和 qmlSource()。
+ * - SqzQml 子类必须在构造函数中调用 initializeView()，或由 SqzHub 自动调用。
+ * - 不要在 SqzQml 子类的构造函数或 onInit() 中调用 OpenSelf()/CloseSelf() 等依赖虚函数的方法。
  * - QML 窗口的 QQuickView 所有权已设置为 CppOwnership，不会被 QML 引擎回收。
  */
 
@@ -194,7 +194,7 @@ using CreatorWithArg = std::function<void*(const QVariantList& args)>;
 class SqzHub : public SqzProp
 {
     Q_OBJECT
-    friend class SqzQuickView;
+    friend class SqzQml;
 public:
     // RAII 辅助类：在作用域内临时修改当前线程的前缀
     class PrefixScope {

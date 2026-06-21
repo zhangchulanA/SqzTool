@@ -1,6 +1,6 @@
 #include "LoginWindow.h"
 
-LoginWindow::LoginWindow(QObject *parent) : SqzQuickView(parent)
+LoginWindow::LoginWindow(QObject *parent) : SqzQml(parent)
 {
 logerror;
 }

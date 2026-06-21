@@ -18,7 +18,8 @@ HEADERS += \
     $$PWD/utils/StringUtils.h \
     $$PWD/utils/SystemUtils.h \
     $$PWD/utils/TimeUtils.h \
-    $$PWD/utils/TimerUtils.h
+    $$PWD/utils/TimerUtils.h \
+    $$PWD/utils/UiHelper.h
 
 SOURCES += \
     $$PWD/other/ChainBranch.cpp \
@@ -37,7 +38,8 @@ SOURCES += \
     $$PWD/utils/StringUtils.cpp \
     $$PWD/utils/SystemUtils.cpp \
     $$PWD/utils/TimeUtils.cpp \
-    $$PWD/utils/TimerUtils.cpp
+    $$PWD/utils/TimerUtils.cpp \
+    $$PWD/utils/UiHelper.cpp
 
 INCLUDEPATH +=  $$PWD/translator\
                 $$PWD/utils \
