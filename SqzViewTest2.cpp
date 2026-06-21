@@ -8,6 +8,7 @@ SqzViewTest2::SqzViewTest2(SqzView *parent) :
     ui->setupUi(this);
 
     logdebug <<"SqzViewTest2 start";
+    Open("LoginWindow");
 }
 
 SqzViewTest2::~SqzViewTest2()

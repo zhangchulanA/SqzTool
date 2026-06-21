@@ -891,7 +891,7 @@ QQmlApplicationEngine *SqzHub::qmlEngine()
 {
     if (!m_qmlEngine) {
         if (!qApp) {
-            qWarning() << "No QApplication instance! Cannot create QML engine.";
+            logwarn << "No QApplication instance! Cannot create QML engine.";
             return nullptr;
         }
         m_qmlEngine.reset(new QQmlApplicationEngine());

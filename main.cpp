@@ -25,13 +25,16 @@ int main(int argc, char *argv[])
 
     QApplication a(argc, argv);
     SqzLog::instance().init("./log","chatlog",10,true);
-     SqzHub::SetThreadPrefix(MODULE_PREFIX);
+    SqzHub::SetThreadPrefix(MODULE_PREFIX);
     Sqz.PrintRegClass();
-//    Sqz.CreateWidget("TestWidget");
-Sqz.CreateWidget("SqzViewTest");
+    //    Sqz.CreateWidget("TestWidget");
+//    Sqz.CreateWidget("SqzViewTest");
 
+    Sqz.CreateQmlWidget("LoginWindow");
+    // 运行事件循环
+    int ret = a.exec();
 
-
-
-    return  a.exec();
+    // 程序退出前主动清理（可选）
+    Sqz.CloseAll();
+    return  ret;
 }

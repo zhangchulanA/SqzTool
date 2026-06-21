@@ -2,7 +2,7 @@
 #include "SqzView.h"
 
 SqzView::SqzView(QWidget* parent) : QWidget(parent) {
-    setObjectName(className());
+
 }
 SqzView::~SqzView() {}
 

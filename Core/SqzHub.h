@@ -7,54 +7,81 @@
 #include <QStringList>
 #include <QCoreApplication>
 #include <type_traits>
+#include <QQmlApplicationEngine>
+#include <memory>
 #include "SqzProp.h"
-
+#include "QQmlEngine"
+#include "QtQuick/QQuickView"
 /**
  * @class SqzHub
  * @brief 通用对象工厂类（生产级单例工厂）- 通过字符串类名创建、管理、销毁各类对象
  *
  * @details
- * SqzHub 是一个全功能的对象工厂，支持通过类名字符串动态创建 QWidget 窗口、
- * QObject 业务类以及普通 C++ 类。它采用单例模式管理所有对象，提供线程安全的
- * 对象池，并自动处理对象的生命周期。
+ * SqzHub 是一个全功能的对象工厂，支持通过类名字符串动态创建三种类型的对象：
+ * - QWidget 窗口（传统 Qt Widgets 界面）
+ * - QObject 业务类（服务、管理器等）
+ * - QML 窗口（通过 SqzQuickView 基类，支持 Qt Quick 界面）
  *
- * 为保证在不知情情况下引入的各个库的注册名字不重复 需要在pro里写上前缀
- * DEFINES += MODULE_PREFIX=\\\"---\\\"  ---为前缀名 建议为项目名
+ * 它采用单例模式管理所有对象，提供线程安全的对象池，并自动处理对象的生命周期。
+ *
+ * 为保证在不知情情况下引入的各个库的注册名字不重复，需要在 pro 里写上前缀：
+ * DEFINES += MODULE_PREFIX=\\\"---\\\"  --- 为前缀名，建议为项目名
  *
  * ==== 核心特性 ====
  * 1. 纯字符串操作：所有接口使用类名（QString）而非模板或类型，适合脚本化调用。
  * 2. 单例对象池：每个类全局只有一个实例，重复调用返回同一对象。
- * 3. 自动类型识别：注册时通过 std::is_base_of 自动识别 QObject 派生类。
- * 4. 读写锁线程安全：读操作并发无阻塞，写操作互斥执行。
- * 5. UI线程安全：所有窗口操作自动检查主线程，子线程调用返回警告。
- * 6. 自动内存管理：窗口关闭或对象销毁时自动从对象池移除。
- *
- * ==== 使用场景 ====
- * - 动态创建窗口：通过配置文件名打开窗口，无需包含具体头文件。
- * - 全局唯一服务：日志、配置、网络管理等核心单例服务。
- * - 脚本化调用：通过字符串动态创建对象，支持热插拔模块。
- * - 跨模块通信：模块间通过类名获取对象，解耦编译依赖。
- * - 账号切换场景：使用 ResetObj 一键重置用户相关服务。
- * -
+ * 3. 统一接口：SqzView/SqzService/SqzQuickView 三个基类提供完全同名的 Open/Close/Reset 等接口。
+ * 4. 自动类型识别：注册时通过 std::is_base_of 自动识别 QObject 派生类。
+ * 5. 读写锁线程安全：读操作并发无阻塞，写操作互斥执行。
+ * 6. UI线程安全：所有窗口操作自动检查主线程，子线程调用返回警告。
+ * 7. 自动内存管理：窗口关闭或对象销毁时自动从对象池移除。
+ * 8. 生命周期回调：支持 onInit() 和 onBeforeClose() 虚函数，便于子类初始化和清理。
+ * 9. 三种界面支持：QWidget、QObject 业务类、QML 窗口统一管理。
  *
  * ==== 注册方式 ====
  * 在每个类的 .cpp 文件末尾添加一行宏即可完成自动注册：
- * - QWidget 窗口类：REGISTER_CLASS_NO_ARG(LoginDialog)
- * - QObject 业务类：REGISTER_CLASS_NO_ARG(UserManager)
- * - 普通 C++ 类：REGISTER_CLASS_NO_ARG(DataCache)
- * - 带参构造类：REGISTER_CLASS_WITH_ARG(MyDialog)
+ * - QWidget 窗口类：SQZ_HUB(LoginDialog)
+ * - QObject 业务类：SQZ_HUB(UserManager)
+ * - 普通 C++ 类：SQZ_HUB(DataCache)
+ * - 带参构造类：SQZ_HUB_ARG(MyDialog)
+ * - QML 窗口类：SQZ_HUB_QML(MyQmlWindow)
+ *
+ * ==== 基类体系 ====
+ * 框架提供三个基类，子类继承后自动获得统一的操作接口：
+ * - SqzView    ：继承自 QWidget，用于传统 Qt Widgets 窗口
+ * - SqzService ：继承自 SqzProp，用于业务服务对象
+ * - SqzQuickView：继承自 QObject，用于 QML 窗口（内部持有 QQuickView）
+ *
+ * 三个基类提供完全同名的公共方法：
+ * - Open(className)    ：创建/激活指定类名的单例
+ * - Close(className)   ：立即销毁指定类名的单例
+ * - CloseLater(className)：延迟销毁指定类名的单例（推荐）
+ * - Reset(className)   ：销毁后重建指定类名的单例
+ * - IsExist(className) ：检查指定类名的单例是否已存在
+ *
+ * SqzView 和 SqzQuickView 额外提供窗口专属操作：
+ * - Hide/Show/Toggle   ：隐藏/显示/切换窗口显隐
+ * - IsVisible          ：判断窗口是否可见
+ * - SetTop             ：设置窗口置顶
+ * - SetSize/SetPos     ：设置窗口大小和位置
  *
  * ==== 使用示例 ====
- * // 注册类（在 .cpp 末尾）
- * REGISTER_CLASS_NO_ARG(LoginDialog)
+ * // ----- 注册类（在 .cpp 末尾）-----
+ * SQZ_HUB(LoginDialog)       // QWidget 窗口
+ * SQZ_HUB(UserManager)       // 业务服务
+ * SQZ_HUB_QML(MyQmlWindow)   // QML 窗口
  *
- * // 创建/显示窗口
+ * // ----- 创建/操作对象 -----
+ * // 打开 QWidget 窗口
  * SqzHub::Instance().CreateWidget("LoginDialog");
  *
- * // 获取服务单例
+ * // 获取业务服务单例
  * UserManager* mgr = (UserManager*)SqzHub::Instance().CreateObject("UserManager");
  *
- * // 窗口操作
+ * // 打开 QML 窗口
+ * SqzHub::Instance().CreateQmlWidget("MyQmlWindow");
+ *
+ * // 窗口操作（通过 SqzView 或 SqzQuickView 基类）
  * SqzHub::Instance().ToggleWidget("LoginDialog");
  * SqzHub::Instance().HideWidget("LoginDialog");
  * SqzHub::Instance().SetWidgetTop("MainWindow", true);
@@ -67,12 +94,63 @@
  * SqzHub::Instance().PrintRegClass();
  * int count = SqzHub::Instance().GetInstanceCount();
  *
+ * // 通过基类快捷操作自身（需先获取对象指针）
+ * SqzView* view = qobject_cast<SqzView*>(SqzHub::Instance().GetWidgetPtr("MyDialog"));
+ * if (view) {
+ *     view->OpenSelf();   // 打开自身（如果已关闭）
+ *     view->CloseSelf();  // 关闭自身
+ * }
+ *
+ * // QML 窗口同样支持
+ * SqzQuickView* qmlView = qobject_cast<SqzQuickView*>(
+ *     SqzHub::Instance().GetQmlObject("MyQmlWindow")
+ * );
+ * if (qmlView) {
+ *     qmlView->ShowSelf();  // 显示自身
+ *     qmlView->HideSelf();  // 隐藏自身
+ * }
+ *
+ * // ----- 带参构造（仅 QWidget/QObject）-----
+ * QVariantList args;
+ * args << "标题" << 800 << 600;
+ * QWidget* w = SqzHub::Instance().CreateWidgetWithArg("MyDialog", args);
+ *
+ * QObject* obj = SqzHub::Instance().CreateObjectWithArg("MyService", args);
+ *
+ * // ----- 临时对象（不入池，需手动释放）-----
+ * void* temp = SqzHub::Instance().CreateTemp("TempData");
+ * // 使用完毕...
+ * SqzHub::Instance().DeleteTemp("TempData", temp);
+ *
+ * // 或使用 SafeDelete 直接释放
+ * SqzHub::SafeDelete(temp);
+ *
+ * // ----- 线程前缀隔离（多租户支持）-----
+ * // 线程 A 设置前缀
+ * SqzHub::SetThreadPrefix("ModuleA");
+ * SqzHub::Instance().CreateWidget("MyDialog");  // 实际查找 "ModuleA::MyDialog"
+ *
+ * // 线程 B 设置前缀
+ * SqzHub::SetThreadPrefix("ModuleB");
+ * SqzHub::Instance().CreateWidget("MyDialog");  // 实际查找 "ModuleB::MyDialog"
+ *
+ * // 使用 RAII 临时切换前缀
+ * {
+ *     SqzHub::PrefixScope scope("Temp");
+ *     SqzHub::Instance().CreateWidget("MyDialog");  // 查找 "Temp::MyDialog"
+ * }
+ * // 自动恢复到旧前缀
+ *
  * ==== 注意事项 ====
- * - 所有窗口操作必须在主线程调用，内部会自动检查。
+ * - 所有窗口操作必须在主线程调用，内部会自动检查（CreateWidget/CreateQmlWidget 强制检查）。
  * - 注册宏必须放在 .cpp 文件末尾，且确保该类已完整定义。
- * - 静态库中使用时可能需要额外链接器选项。
- * - 临时对象（CreateTemp）不会自动释放，用完必须手动调用 SafeDelete。
+ * - 静态库中使用时可能需要额外链接器选项（FORCE_LINK_THIS 已处理）。
+ * - 临时对象（CreateTemp）不会自动释放，用完必须手动调用 DeleteTemp 或 SafeDelete。
  * - 带参构造类必须提供接收 QVariantList 的构造函数。
+ * - QML 窗口类必须继承 SqzQuickView 并实现 className() 和 qmlSource()。
+ * - SqzQuickView 子类必须在构造函数中调用 initializeView()，或由 SqzHub 自动调用。
+ * - 不要在 SqzQuickView 子类的构造函数或 onInit() 中调用 OpenSelf()/CloseSelf() 等依赖虚函数的方法。
+ * - QML 窗口的 QQuickView 所有权已设置为 CppOwnership，不会被 QML 引擎回收。
  */
 
 
@@ -116,7 +194,7 @@ using CreatorWithArg = std::function<void*(const QVariantList& args)>;
 class SqzHub : public SqzProp
 {
     Q_OBJECT
-
+    friend class SqzQuickView;
 public:
     // RAII 辅助类：在作用域内临时修改当前线程的前缀
     class PrefixScope {
@@ -170,7 +248,15 @@ public:
      * @usage 通过 REGISTER_CLASS_WITH_ARG 宏调用
      */
     void RegisterWithArg(const QString& ClassName, CreatorWithArg Func);
-
+    /**
+     * @brief 注册qml类（无参构造）
+     * @param ClassName 类名字符串
+     * @param Func 带参构造函数，接收 const QVariantList& 参数
+     * @usage 通过 SQZ_HUB_QML 宏调用
+     */
+    void RegisterQmlClass(const QString& ClassName,
+                          std::function<void*()> Creator,
+                          std::function<void(void*)> Deleter = nullptr);
     // ==================== 核心创建接口 ====================
 
     /**
@@ -197,20 +283,31 @@ public:
      * @usage MyData* data = (MyData*)SqzHub::Instance().CreateRawObj("MyData");
      */
     void* CreateRawObj(const QString& ClassName);
+
+    /**
+     * @brief 创建 QML 窗口单例
+     * @param ClassName 已注册的普通 C++ 类名
+     * @return 裸对象指针
+     * @usage MyData* data = (MyData*)SqzHub::Instance().CreateQmlWidget("MyData");
+     */
+    QObject* CreateQmlWidget(const QString& ClassName);
+
     /**
      * @brief 获取或创建带参数窗口单例（仅主线程可用）
      * @param ClassName 已注册的窗口类名
      * @return 窗口指针，失败返回 nullptr
      * @usage QWidget* w = SqzHub::Instance().CreateWidget("LoginDialog");
      */
+
     QWidget* CreateWidgetWithArg(const QString& ClassName, const QVariantList& args);
     /**
      * @brief 获取或创建带参数 QObject 业务类单例
      * @param ClassName 已注册的 QObject 类名
      * @return 业务对象指针
-     * @usage MyService* svc = (MyService*)SqzHub::Instance().CreateObject("MyService");
+     * @usage MyWidget* svc = (MyService*)SqzHub::Instance().CreateObject("MyWidget");
      */
     QObject* CreateObjectWithArg(const QString& ClassName, const QVariantList& args);
+
 
     // ==================== 对象生命周期管理 ====================
 
@@ -400,12 +497,12 @@ public:
      */
     QObject* CreateObjectByArg(const QString& ClassName, const QVariantList& Args);
 
+    QQmlApplicationEngine* qmlEngine();
 private:
     explicit SqzHub(QObject *parent = nullptr);
     ~SqzHub() override;
     Q_DISABLE_COPY(SqzHub)
 
-private:
     /**
      * @brief 内部创建核心函数，处理单例池、线程检查、注册和信号连接
      * @param ClassName      类名（已含前缀）
@@ -416,10 +513,25 @@ private:
     void* createInternal(const QString& ClassName,
                          std::function<bool(void*)> validator,
                          bool isWidget);
+    /**
+     * @brief 获取 QML 窗口对象（用于操作）
+     * @param ClassName 已注册的 QObject 类名
+     * @return 业务对象指针
+     * @usage MyQML* svc = (MyService*)SqzHub::Instance().GetQmlObject("MyQML");
+     */
+    QObject* GetQmlObject(const QString& ClassName);
+
+
+    ClassMeta getMetaForClass(const QString& fullname);
+    std::unique_ptr<QQmlApplicationEngine> m_qmlEngine;
+
+
+private:
 
     QHash<QString, ClassMeta>      m_noArgCreator;
     QHash<QString, CreatorWithArg> m_argCreator;
     QHash<QString, void*>          m_singlePool;
+    QHash<QString, ClassMeta>      m_qmlCreators;
 };
 
 
@@ -428,7 +540,7 @@ private:
 #else
 #define FORCE_LINK_THIS(x) __attribute__((used))
 #endif
-
+//----------------------------------------------------------------------------
 /**
  * @brief 无参类自动注册宏（支持模块前缀）
  * @param Cls 类名（无需引号）
@@ -436,16 +548,16 @@ private:
  *       否则注册为 "Cls"
  */
 #define SQZ_HUB(Cls) \
-static void _auto_reg_##Cls() \
+    static void _auto_reg_##Cls() \
 { \
     constexpr bool isQObj = std::is_base_of<QObject, Cls>::value; \
     SqzHub::Instance().RegisterNoArg(MAKE_FULL_NAME(Cls), \
-        []()->void*{ return new Cls(); }, \
-        [](void* ptr){ delete static_cast<Cls*>(ptr); }, \
-        isQObj \
+    []()->void*{ return new Cls(); }, \
+    [](void* ptr){ delete static_cast<Cls*>(ptr); }, \
+    isQObj \
     ); \
-} \
-FORCE_LINK_THIS(_reg_flag_##Cls) static bool _reg_flag_##Cls = (_auto_reg_##Cls(), true);
+    } \
+    FORCE_LINK_THIS(_reg_flag_##Cls) static bool _reg_flag_##Cls = (_auto_reg_##Cls(), true);
 
 /**
  * @brief 带参类自动注册宏（支持模块前缀）
@@ -453,13 +565,29 @@ FORCE_LINK_THIS(_reg_flag_##Cls) static bool _reg_flag_##Cls = (_auto_reg_##Cls(
  * @note 类的构造函数需接收 QVariantList 参数
  */
 #define SQZ_HUB_ARG(Cls) \
-static void _auto_reg_arg_##Cls() \
+    static void _auto_reg_arg_##Cls() \
 { \
     SqzHub::Instance().RegisterWithArg(MAKE_FULL_NAME(Cls), [](const QVariantList& Args)->void*{ \
-        return new Cls(Args); \
+    return new Cls(Args); \
     }); \
-} \
-FORCE_LINK_THIS(_reg_flag_arg_##Cls) static bool _reg_flag_arg_##Cls = (_auto_reg_arg_##Cls(), true);
+    } \
+    FORCE_LINK_THIS(_reg_flag_arg_##Cls) static bool _reg_flag_arg_##Cls = (_auto_reg_arg_##Cls(), true);
+
+/**
+ * @brief 无参类自动注册宏qml（支持模块前缀）
+ * @param Cls 类名（无需引号）
+ * @note 如果定义了 MODULE_PREFIX，则注册的完整类名为 "MODULE_PREFIX::Cls"
+ *       否则注册为 "Cls"
+ */
+#define SQZ_HUB_QML(Class) \
+    static void _auto_reg_qml_##Class() { \
+    SqzHub::Instance().RegisterQmlClass(MAKE_FULL_NAME(Class), \
+    []()->void*{ return new Class(); }, \
+    [](void* ptr){ delete static_cast<Class*>(ptr); } \
+    ); \
+    } \
+    FORCE_LINK_THIS(_reg_qml_flag_##Class) \
+    static bool _reg_qml_flag_##Class = (_auto_reg_qml_##Class(), true);
 
 #define Sqz   SqzHub::Instance()
 

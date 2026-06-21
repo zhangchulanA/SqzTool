@@ -2,7 +2,7 @@
 #include "SqzService.h"
 
 SqzService::SqzService(QObject* parent) : QObject(parent) {
-    setObjectName(className());
+
 }
 SqzService::~SqzService() {}
 

@@ -1,0 +1,145 @@
+// SqzQuickView.cpp
+#include "SqzQuickView.h"
+
+#include <QQmlComponent>
+
+SqzQuickView::SqzQuickView(QObject* parent) : QObject(parent) {}
+SqzQuickView::~SqzQuickView() {
+
+}
+
+// ---------- 通用单例操作 ----------
+void SqzQuickView::Open(const QString& className) {
+    SqzHub::Instance().CreateQmlWidget(className);
+}
+void SqzQuickView::Close(const QString& className) {
+    SqzHub::Instance().CloseObj(className);
+}
+void SqzQuickView::CloseLater(const QString& className) {
+    SqzHub::Instance().CloseObjLater(className);
+}
+void SqzQuickView::Reset(const QString& className) {
+    SqzHub::Instance().ResetObj(className);
+}
+bool SqzQuickView::IsExist(const QString& className) const {
+    return SqzHub::Instance().IsExist(className);
+}
+
+// ---------- 窗口专属操作 ----------
+void SqzQuickView::Hide(const QString& className) {
+    QObject* obj = SqzHub::Instance().GetQmlObject(className);
+    if (obj) {
+        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        if (view && view->m_window) {
+            view->m_window->hide();
+        }
+    }
+}
+void SqzQuickView::Show(const QString& className) {
+    QObject* obj = SqzHub::Instance().GetQmlObject(className);
+    if (obj) {
+        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        if (view && view->m_window) {
+            view->m_window->show();
+            view->m_window->raise();
+            view->m_window->requestActivate();
+        }
+    }
+}
+void SqzQuickView::Toggle(const QString& className) {
+    QObject* obj = SqzHub::Instance().GetQmlObject(className);
+
+    if (obj) {
+        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        bool visible = obj->property("visible").toBool();
+        if (visible) {
+            if (view && view->m_window)
+            view->m_window->hide();
+        } else {   
+            if (view && view->m_window) {
+                view->m_window->show();
+                view->m_window->raise();
+                view->m_window->requestActivate();
+            }
+        }
+    }
+}
+bool SqzQuickView::IsVisible(const QString& className) const {
+    QObject* obj = SqzHub::Instance().GetQmlObject(className);
+    if (obj) {
+        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        if (view && view->m_window) {
+            return view->m_window->isVisible();
+        }
+    }
+    return false;
+}
+void SqzQuickView::SetTop(const QString& className, bool topMost) {
+    QObject* obj = SqzHub::Instance().GetQmlObject(className);
+    if (obj) {
+        SqzQuickView* view = qobject_cast<SqzQuickView*>(obj);
+        if (view && view->m_window) {
+            view->m_window->setFlag(Qt::WindowStaysOnTopHint, topMost);
+        }
+    }
+}
+void SqzQuickView::SetSize(const QString& className, int w, int h) {
+    QObject* obj = SqzHub::Instance().GetQmlObject(className);
+    if (obj) {
+        obj->setProperty("width", w);
+        obj->setProperty("height", h);
+    }
+}
+void SqzQuickView::SetPos(const QString& className, int x, int y) {
+    QObject* obj = SqzHub::Instance().GetQmlObject(className);
+    if (obj) {
+        obj->setProperty("x", x);
+        obj->setProperty("y", y);
+    }
+}
+
+// ---------- 快捷操作 ----------
+void SqzQuickView::OpenSelf() { Open(className()); }
+void SqzQuickView::CloseSelf() { Close(className()); }
+void SqzQuickView::HideSelf() { Hide(className()); }
+void SqzQuickView::ShowSelf() { Show(className()); }
+
+
+void SqzQuickView::initializeView()
+{
+    if (m_initialized) return;
+
+    QQmlEngine* engine = SqzHub::Instance().qmlEngine();
+    if (!engine) {
+        qWarning() << "QML engine not available!";
+        return;
+    }
+
+    QQmlComponent component(engine, QUrl(qmlSource()));
+    if (component.isError()) {
+        qWarning() << "Failed to load QML:" << component.errors();
+        return;
+    }
+
+    QObject* obj = component.create();
+    if (!obj) {
+        qWarning() << "Failed to create QML object!";
+        return;
+    }
+
+    m_window = qobject_cast<QQuickWindow*>(obj);
+    if (!m_window) {
+        qWarning() << "QML root is not a QQuickWindow!";
+        delete obj;
+        return;
+    }
+
+    // 设置 C++ 所有权，防止 QML 引擎自动销毁
+    QQmlEngine::setObjectOwnership(m_window, QQmlEngine::CppOwnership);
+
+    // 调用子类自定义
+    customizeWindow(m_window);
+
+    m_initialized = true;
+    onInit();
+}

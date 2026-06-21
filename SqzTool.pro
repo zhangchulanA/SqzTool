@@ -1,5 +1,5 @@
 
-QT       += core gui network sql xml concurrent
+QT       += core gui network sql xml concurrent qml quick quickwidgets
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -66,12 +66,16 @@ include(Utils/Utils.pri)
 include(NetWork/NetWork.pri)
 
 SOURCES += \
+    LoginWindow.cpp \
+    MyQmlWindow.cpp \
     SqzViewTest.cpp \
     SqzViewTest2.cpp \
     TestWidget.cpp \
     main.cpp
 
 HEADERS += \
+    LoginWindow.h \
+    MyQmlWindow.h \
     SqzViewTest.h \
     SqzViewTest2.h \
     TestWidget.h
@@ -101,7 +105,8 @@ unix {
     # QMAKE_CXXFLAGS += -finput-charset=UTF-8 -fexec-charset=UTF-8
 }
 
-RESOURCES +=
+RESOURCES += \
+    QML.qrc
 
 
 DISTFILES += \

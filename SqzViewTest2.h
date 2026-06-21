@@ -14,7 +14,10 @@ class SqzViewTest2 : public SqzView
 public:
     explicit SqzViewTest2(SqzView *parent = nullptr);
     ~SqzViewTest2();
-
+protected:
+    QString className() const override{
+        return  "SqzViewTest2";
+    }
 private:
     Ui::SqzViewTest2 *ui;
 };

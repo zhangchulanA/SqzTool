@@ -40,9 +40,7 @@ public:
 
 protected:
     // 获取子类名称
-    virtual QString className() const{
-        return QString(metaObject()->className());
-    }
+    virtual QString className() const = 0;
     // ========== 新增生命周期回调 ==========
     // 对象首次创建后调用（此时 UI 已建立，但尚未显示）
     virtual void onInit() {}
