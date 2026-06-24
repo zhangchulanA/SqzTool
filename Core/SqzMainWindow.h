@@ -1,28 +1,28 @@
-// SqzWidget.h
-#ifndef SqzWidget_H
-#define SqzWidget_H
+// SqzMainWindow.h
+#ifndef SqzMainWindow_H
+#define SqzMainWindow_H
 
 /**
- * @class SqzWidget
- * @brief 所有窗口/视图界面的基类，继承自 QWidget。
+ * @class SqzMainWindow
+ * @brief 所有窗口/视图界面的基类，继承自 QMainWindow。
  *        提供与 SqzService 同名的通用单例操作接），
  *        并额外提供窗口专属操作。
  *        子类必须实现 className() 纯虚函数，并确保类名与注册名称一致。
  *        推荐使用 SqzHub 创建子类实例，避免直接 new。
  */
-#include <QWidget>
+#include <QMainWindow>
 #include "SqzHub.h"
 
-class SqzWidget : public QWidget
+class SqzMainWindow : public QMainWindow
 {
     Q_OBJECT
     friend class SqzHub;
 public:
-    explicit SqzWidget(QWidget* parent = nullptr);
-    virtual ~SqzWidget();
+    explicit SqzMainWindow(QWidget* parent = nullptr);
+    virtual ~SqzMainWindow();
 
 
-    // ========== 通用单例操作（与 SqzWidget/SqzService 同名） ==========
+    // ========== 通用单例操作（与 SqzMainWindow/SqzService 同名） ==========
 
     /// @brief 呼叫视图（创建并激活窗口/服务实例）
     void CallView(const QString& className);
@@ -90,7 +90,6 @@ protected:
 
     /// @brief 获取子类名称（必须实现）
     virtual QString className() const = 0;
-
 };
 
-#endif // SqzWidget_H
+#endif // SqzMainWindow_H

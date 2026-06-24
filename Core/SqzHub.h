@@ -274,7 +274,7 @@ private:
     static bool _reg_qml_flag_##Class = (_auto_reg_qml_##Class(), true);
 
 /** @brief 注册带参类（接收 QVariantList） */
-#define SQZ_ARG(Cls) \
+#define SQZOBJECT_ARG(Cls) \
     static void _auto_reg_arg_##Cls() \
 { \
     SqzHub::Instance().RegisterWithArg(MAKE_FULL_NAME(Cls), [](const QVariantList& Args)->void*{ \

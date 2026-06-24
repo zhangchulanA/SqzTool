@@ -4,7 +4,7 @@
 #include "SqzWidget.h"
 #include "SqzService.h"
 #include "SqzQuick.h"
-
+#include "SqzMainWindow.h"
 
 thread_local QString SqzHub::t_prefix;
 // 构造函数
@@ -36,6 +36,8 @@ SqzHub::~SqzHub()
                 svc->onClose();
             else if (auto* qmlView = qobject_cast<SqzQuick*>(obj))
                 qmlView->onClose();
+            else if (auto* mainWin = qobject_cast<SqzMainWindow*>(obj))
+                mainWin->onClose();
         }
         SafeDelete(deleteList[i], metaList[i].isQObject, true);
     }
@@ -136,6 +138,8 @@ void *SqzHub::createInternal(const QString &ClassName, std::function<bool (void 
             view->onInit();
         else if (auto* svc = qobject_cast<SqzService*>(obj))
             svc->onInit();
+        else if (auto* mainWin = qobject_cast<SqzMainWindow*>(obj))
+            mainWin->onInit();
 
     }
     // 9. 若是窗口，显示并置前
@@ -490,6 +494,8 @@ void SqzHub::CloseObj(const QString& ClassName)
             svc->onClose();
         else if (auto* qmlView = qobject_cast<SqzQuick*>(obj))
             qmlView->onClose();
+        else if (auto* mainWin = qobject_cast<SqzMainWindow*>(obj))
+            mainWin->onClose();
     }
     if (meta.deleter) meta.deleter(ptr);
     else SafeDelete(ptr, meta.isQObject,true);
@@ -898,6 +904,8 @@ void SqzHub::CloseAll()
                 svc->onClose();
             else if (auto* qmlView = qobject_cast<SqzQuick*>(obj))
                 qmlView->onClose();
+            else if (auto* mainWin = qobject_cast<SqzMainWindow*>(obj))
+                mainWin->onClose();
         }
         // 强制立即删除
         SafeDelete(deleteList[i], metaList[i].isQObject, true);

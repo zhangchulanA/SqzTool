@@ -19,7 +19,7 @@
 #include "MsgBox.h"
 #include "SuperTableAll.h"
 #include "UiUtils.h"
-#include "RadioUdpManager.h"
+#include "RadioLink.h"
 
 using namespace std::chrono_literals;
 int main(int argc, char *argv[])
@@ -33,8 +33,8 @@ int main(int argc, char *argv[])
 //    Sqz.CreateWidget("SqzViewTest");
 
 //    Sqz.CreateQmlWidget("LoginWindow");
-
-    RadioUdpManager manager;
+    Sqz.CreateWidget("MainWindowTest");
+    RadioLink manager;
 
     // 配置参数
     const QString RADIO_IP = "192.168.50.164"; // 改成你的电台IP，本机测试用 "127.0.0.1"
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     // 初始化发送器
     manager.init(QHostAddress(LOCAL_IP), LOCAL_PORT,QHostAddress(RADIO_IP), RADIO_PORT, MAX_RATE);
 
-    QObject::connect(&manager,&RadioUdpManager::getMessage,[=](const QByteArray& data){
+    QObject::connect(&manager,&RadioLink::getMessage,[=](const QByteArray& data){
        logdebug << data.size();
     });
 

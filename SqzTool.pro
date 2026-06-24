@@ -67,14 +67,17 @@ include(NetWork/NetWork.pri)
 
 SOURCES += \
     LoginWindow.cpp \
+    MainWindowTest.cpp \
     TestWidget.cpp \
     main.cpp
 
 HEADERS += \
     LoginWindow.h \
+    MainWindowTest.h \
     TestWidget.h
 
 FORMS += \
+    MainWindowTest.ui \
     TestWidget.ui
 
 # Default rules for deployment.

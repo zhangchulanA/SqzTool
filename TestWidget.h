@@ -20,9 +20,6 @@ class TestWidget : public FramelessWidget
 {
     Q_OBJECT
 
-    PROP(int,age,3)
-    PROP(int,num,4)
-
     ENABLE_JSON
     public:
         enum State { Idle, Running, Done };

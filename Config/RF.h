@@ -17,7 +17,7 @@
 
 // 用法: PROP(类型, 名称, 默认值)
 // 示例: PROP(int, age, 0)
-#define PROP(type, name, defaultValue)                         \
+#define VIEW_MODE(type, name, defaultValue)                         \
     Q_PROPERTY(type name READ name WRITE set##name NOTIFY name##Changed) \
 public:                                                            \
     type name() const { return m_##name; }                         \

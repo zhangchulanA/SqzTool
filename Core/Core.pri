@@ -1,6 +1,7 @@
 HEADERS += \
     $$PWD/SqzBus.h \
     $$PWD/SqzHub.h \
+    $$PWD/SqzMainWindow.h \
     $$PWD/SqzProp.h \
     $$PWD/SqzQuick.h \
     $$PWD/SqzService.h \
@@ -10,6 +11,7 @@ HEADERS += \
 SOURCES += \
     $$PWD/SqzBus.cpp \
     $$PWD/SqzHub.cpp \
+    $$PWD/SqzMainWindow.cpp \
     $$PWD/SqzProp.cpp \
     $$PWD/SqzQuick.cpp \
     $$PWD/SqzService.cpp \
