@@ -67,22 +67,14 @@ include(NetWork/NetWork.pri)
 
 SOURCES += \
     LoginWindow.cpp \
-    MyQmlWindow.cpp \
-    SqzViewTest.cpp \
-    SqzViewTest2.cpp \
     TestWidget.cpp \
     main.cpp
 
 HEADERS += \
     LoginWindow.h \
-    MyQmlWindow.h \
-    SqzViewTest.h \
-    SqzViewTest2.h \
     TestWidget.h
 
 FORMS += \
-    SqzViewTest.ui \
-    SqzViewTest2.ui \
     TestWidget.ui
 
 # Default rules for deployment.

@@ -10,8 +10,8 @@ HEADERS += \
     $$PWD/other/Singleton.h \
     $$PWD/other/ThreadPool.h \
     $$PWD/other/TimeoutKeeper.h \
-    $$PWD/translator/SqzTranslator.h \
-    $$PWD/translator/SqzTranslatorMask.h \
+    $$PWD/translator/Translator.h \
+    $$PWD/translator/TranslatorMask.h \
     $$PWD/utils/FileUtils.h \
     $$PWD/utils/IniUtils.h \
     $$PWD/utils/JsonUtils.h \
@@ -19,7 +19,7 @@ HEADERS += \
     $$PWD/utils/SystemUtils.h \
     $$PWD/utils/TimeUtils.h \
     $$PWD/utils/TimerUtils.h \
-    $$PWD/utils/UiHelper.h
+    $$PWD/utils/UiUtils.h
 
 SOURCES += \
     $$PWD/other/ChainBranch.cpp \
@@ -30,8 +30,8 @@ SOURCES += \
     $$PWD/other/Singleton.cpp \
     $$PWD/other/ThreadPool.cpp \
     $$PWD/other/TimeoutKeeper.cpp \
-    $$PWD/translator/SqzTranslator.cpp \
-    $$PWD/translator/SqzTranslatorMask.cpp \
+    $$PWD/translator/Translator.cpp \
+    $$PWD/translator/TranslatorMask.cpp \
     $$PWD/utils/FileUtils.cpp \
     $$PWD/utils/IniUtils.cpp \
     $$PWD/utils/JsonUtils.cpp \
@@ -39,7 +39,7 @@ SOURCES += \
     $$PWD/utils/SystemUtils.cpp \
     $$PWD/utils/TimeUtils.cpp \
     $$PWD/utils/TimerUtils.cpp \
-    $$PWD/utils/UiHelper.cpp
+    $$PWD/utils/UiUtils.cpp
 
 INCLUDEPATH +=  $$PWD/translator\
                 $$PWD/utils \

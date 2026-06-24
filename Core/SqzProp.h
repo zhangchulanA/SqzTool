@@ -52,7 +52,7 @@
 #include <QReadWriteLock>
 #include <QPointer>
 #include <QMetaProperty>
-#include "SqzLog.h"
+#include "Logger.h"
 #include "RF.h"
 
 // 前置声明

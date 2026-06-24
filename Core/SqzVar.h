@@ -14,32 +14,7 @@
  * - 提供模板版本 Set<T> / Get<T>，使用更方便、类型安全。
  * - 支持监听变量变化（回调函数），当值真正改变时触发。
  * - 线程安全（内部使用 QMutex，可在多线程环境中调用）。
- *
- * 使用示例：
- * \code
- * // 写入
- * SqzVar::Set("volume", 80);
- * SqzVar::Set<QString>("name", "Alice");
- *
- * // 读取
- * int vol = SqzVar::Get("volume", 50).toInt();
- * QString name = SqzVar::Get<QString>("name", "unknown");
- *
- * // 监听变化
- * int id = SqzVar::On("volume", [](const QVariant& val) {
- *     qDebug() << "Volume changed to" << val.toInt();
- * });
- * SqzVar::Set("volume", 90);  // 回调被触发
- *
- * // 移除监听
- * SqzVar::Off("volume", id);  // 移除特定监听器
- * SqzVar::Off("volume");      // 移除所有监听器
- *
- * // 其他操作
- * if (SqzVar::Has("name")) { ... }
- * SqzVar::Remove("name");
- * SqzVar::Clear();
- * \endcode
+
  */
 namespace SqzVar {
 

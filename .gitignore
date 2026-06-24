@@ -1,0 +1,12 @@
+#忽略所有.pro.user文件
+*.pro.user.*
+*.pro.user
+#忽略所有的对象文件
+*.o
+#忽略moc_
+moc_*
+#忽略.qmake.stash
+.qmake.stash
+#忽略log
+*.log
+.sqat/

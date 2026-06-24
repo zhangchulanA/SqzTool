@@ -13,13 +13,13 @@
  * 特性：鼠标穿透、无边框、置顶、双平台兼容、零性能损耗、自动适应多屏及屏幕变化
  * 适配：Qt 5.12 Windows/Ubuntu
  */
-class SqzTranslatorMask : public QWidget
+class TranslatorMask : public QWidget
 {
     Q_OBJECT
-    static SqzTranslatorMask* s_instance;
+    static TranslatorMask* s_instance;
 
     // 私有构造（单例模式，全局唯一）
-    explicit SqzTranslatorMask(QWidget *parent = nullptr) : QWidget(parent)
+    explicit TranslatorMask(QWidget *parent = nullptr) : QWidget(parent)
     {
         // 窗口配置：无边框+置顶+不占用任务栏
         setWindowFlags(Qt::FramelessWindowHint
@@ -38,7 +38,7 @@ class SqzTranslatorMask : public QWidget
         hide();
 
         // 监听屏幕变化（分辨率、添加/移除显示器），自动更新遮罩大小
-        connect(qApp, &QGuiApplication::primaryScreenChanged, this, &SqzTranslatorMask::updateFullGeometry);
+        connect(qApp, &QGuiApplication::primaryScreenChanged, this, &TranslatorMask::updateFullGeometry);
         // 注意：Qt 5.12 中 QScreen 没有 geometryChanged 信号，改用连接所有屏幕的 destroyed 和 应用主屏幕变化简单处理
         // 为了更全面的响应，重写 showEvent 每次显示时重新计算几何即可
     }
@@ -47,10 +47,10 @@ public:
     /**
      * @brief 获取单例对象（全局唯一）
      */
-    static SqzTranslatorMask* instance()
+    static TranslatorMask* instance()
     {
         if (!s_instance)
-            s_instance = new SqzTranslatorMask;
+            s_instance = new TranslatorMask;
         return s_instance;
     }
 

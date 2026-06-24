@@ -1,4 +1,4 @@
-#include "SqzTranslator.h"
+#include "Translator.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -7,10 +7,10 @@
 #include <QFileInfo>
 #include <QPointer>
 #include <QMetaMethod>
-#include "SqzLog.h"  // 假设存在，若没有可注释或替换为 qDebug
+#include "Logger.h"
 
 
-SqzTranslator::SqzTranslator(QObject* parent)
+Translator::Translator(QObject* parent)
     : QObject(parent)
     , m_uiLocked(false)
     , m_lazyLoad(false)      // 默认关闭懒加载，保持原有预加载行为
@@ -18,28 +18,28 @@ SqzTranslator::SqzTranslator(QObject* parent)
     m_debounceTimer = new QTimer(this);
     m_debounceTimer->setSingleShot(true);
     m_debounceTimer->setInterval(200);
-    connect(m_debounceTimer, &QTimer::timeout, this, &SqzTranslator::onDebounceTriggered);
+    connect(m_debounceTimer, &QTimer::timeout, this, &Translator::onDebounceTriggered);
 
-    connect(this, &SqzTranslator::batchRefreshSignal,
-            this, &SqzTranslator::onBatchRefreshWidgets, Qt::QueuedConnection);
+    connect(this, &Translator::batchRefreshSignal,
+            this, &Translator::onBatchRefreshWidgets, Qt::QueuedConnection);
 
-    m_mask = SqzTranslatorMask::instance();
+    m_mask = TranslatorMask::instance();
 }
 
-SqzTranslator& SqzTranslator::instance()
+Translator& Translator::instance()
 {
-    static SqzTranslator s_instance;
+    static Translator s_instance;
     return s_instance;
 }
 
-void SqzTranslator::registerLanguage(const QString& langName, const QString& filePath)
+void Translator::registerLanguage(const QString& langName, const QString& filePath)
 {
     QMutexLocker locker(&m_mutex);
     if (!langName.isEmpty() && !filePath.isEmpty())
         m_langPath[langName] = filePath;
 }
 
-void SqzTranslator::preloadAllLanguages()
+void Translator::preloadAllLanguages()
 {
     QMutexLocker locker(&m_mutex);
     if (m_lazyLoad) {
@@ -57,7 +57,7 @@ void SqzTranslator::preloadAllLanguages()
     }
 }
 
-void SqzTranslator::setLazyLoad(bool enable)
+void Translator::setLazyLoad(bool enable)
 {
     QMutexLocker locker(&m_mutex);
     m_lazyLoad = enable;
@@ -71,7 +71,7 @@ void SqzTranslator::setLazyLoad(bool enable)
     }
 }
 
-void SqzTranslator::setDefaultLanguage(const QString& langName)
+void Translator::setDefaultLanguage(const QString& langName)
 {
     QMutexLocker locker(&m_mutex);
     m_defaultLang = langName;
@@ -79,7 +79,7 @@ void SqzTranslator::setDefaultLanguage(const QString& langName)
     ensureDefaultLanguageValid(); // 确保默认语言有效
 }
 
-void SqzTranslator::ensureDefaultLanguageValid()
+void Translator::ensureDefaultLanguageValid()
 {
     QMutexLocker locker(&m_mutex);
     if (m_defaultLang.isEmpty())
@@ -97,7 +97,7 @@ void SqzTranslator::ensureDefaultLanguageValid()
     }
 }
 
-void SqzTranslator::disableLanguage(const QString& langName)
+void Translator::disableLanguage(const QString& langName)
 {
     QMutexLocker locker(&m_mutex);
     if (m_langPath.contains(langName)) {
@@ -111,20 +111,20 @@ void SqzTranslator::disableLanguage(const QString& langName)
     }
 }
 
-void SqzTranslator::enableLanguage(const QString& langName)
+void Translator::enableLanguage(const QString& langName)
 {
     QMutexLocker locker(&m_mutex);
     m_disabledLangs.remove(langName);
     ensureDefaultLanguageValid(); // 可能默认语言被重新启用
 }
 
-bool SqzTranslator::isLanguageDisabled(const QString& langName) const
+bool Translator::isLanguageDisabled(const QString& langName) const
 {
     QMutexLocker locker(&m_mutex);
     return m_disabledLangs.contains(langName);
 }
 
-void SqzTranslator::safeSwitchLanguage(const QString& langName)
+void Translator::safeSwitchLanguage(const QString& langName)
 {
     if (m_isSwitching) return;
 
@@ -154,7 +154,7 @@ void SqzTranslator::safeSwitchLanguage(const QString& langName)
     m_debounceTimer->start();
 }
 
-void SqzTranslator::onDebounceTriggered()
+void Translator::onDebounceTriggered()
 {
     m_isSwitching = true;
     lockUI();
@@ -179,7 +179,7 @@ void SqzTranslator::onDebounceTriggered()
     emit batchRefreshSignal();
 }
 
-bool SqzTranslator::ensureLanguageLoaded(const QString& langName) const
+bool Translator::ensureLanguageLoaded(const QString& langName) const
 {
     QMutexLocker locker(&m_mutex);
     if (m_langCache.contains(langName))
@@ -191,10 +191,10 @@ bool SqzTranslator::ensureLanguageLoaded(const QString& langName) const
     // 注意：loadLanguageFile 是非 const 成员，此处 const_cast 不优雅，但为了保持接口 const 正确
     // 实际可以修改 translate 不声明为 const，但为了兼容现有代码，使用 mutable 成员或强制转换
     // 由于 m_langCache 是 mutable，但 loadLanguageFile 修改其他成员，因此需要强制转换
-    return const_cast<SqzTranslator*>(this)->loadLanguageFile(langName);
+    return const_cast<Translator*>(this)->loadLanguageFile(langName);
 }
 
-void SqzTranslator::onBatchRefreshWidgets()
+void Translator::onBatchRefreshWidgets()
 {
     // 遍历窗口列表时加锁复制，避免迭代器失效
     QList<QWidget*> widgets;
@@ -214,7 +214,7 @@ void SqzTranslator::onBatchRefreshWidgets()
     m_isSwitching = false;
 }
 
-void SqzTranslator::registerWidget(QWidget* widget)
+void Translator::registerWidget(QWidget* widget)
 {
     if (!widget) return;
     QMutexLocker locker(&m_mutex);
@@ -231,7 +231,7 @@ void SqzTranslator::registerWidget(QWidget* widget)
     }
 }
 
-void SqzTranslator::unregisterWidget(QWidget* widget)
+void Translator::unregisterWidget(QWidget* widget)
 {
     if (!widget) return;
     QMutexLocker locker(&m_mutex);
@@ -240,7 +240,7 @@ void SqzTranslator::unregisterWidget(QWidget* widget)
     disconnect(widget, &QObject::destroyed, this, nullptr);
 }
 
-void SqzTranslator::lockUI()
+void Translator::lockUI()
 {
     if (!m_uiLocked) {
         m_uiLocked = true;
@@ -248,7 +248,7 @@ void SqzTranslator::lockUI()
     }
 }
 
-void SqzTranslator::unlockUI()
+void Translator::unlockUI()
 {
     if (m_uiLocked) {
         m_uiLocked = false;
@@ -256,7 +256,7 @@ void SqzTranslator::unlockUI()
     }
 }
 
-QString SqzTranslator::translate(const QString& key) const
+QString Translator::translate(const QString& key) const
 {
     if (key.isEmpty()) return key;
     QMutexLocker locker(&m_mutex);
@@ -283,7 +283,7 @@ QString SqzTranslator::translate(const QString& key) const
     return key;
 }
 
-QStringList SqzTranslator::languageList() const
+QStringList Translator::languageList() const
 {
     QMutexLocker locker(&m_mutex);
     QStringList list = m_langPath.keys();
@@ -294,7 +294,7 @@ QStringList SqzTranslator::languageList() const
     return list;
 }
 
-QString SqzTranslator::currentLanguage() const
+QString Translator::currentLanguage() const
 {
     QMutexLocker locker(&m_mutex);
     return m_currentLang;
@@ -302,7 +302,7 @@ QString SqzTranslator::currentLanguage() const
 
 // ========== 私有文件加载与校验（优化：合并JSON解析、减小锁粒度） ==========
 
-bool SqzTranslator::loadLanguageFile(const QString& langName)
+bool Translator::loadLanguageFile(const QString& langName)
 {
     QString filePath;
     {
@@ -377,14 +377,14 @@ bool SqzTranslator::loadLanguageFile(const QString& langName)
     return true;
 }
 
-void SqzTranslator::markLanguageInvalid(const QString& langName)
+void Translator::markLanguageInvalid(const QString& langName)
 {
     QMutexLocker locker(&m_mutex);
     m_invalidLangs.insert(langName);
     m_langCache.remove(langName);
 }
 
-bool SqzTranslator::isUtf8Encoded(const QByteArray& data)
+bool Translator::isUtf8Encoded(const QByteArray& data)
 {
     int len = data.size(), i = 0;
     while (i < len) {
@@ -403,7 +403,7 @@ bool SqzTranslator::isUtf8Encoded(const QByteArray& data)
     return true;
 }
 
-bool SqzTranslator::checkJsonValidity(const QByteArray& fileData)
+bool Translator::checkJsonValidity(const QByteArray& fileData)
 {
     // 此函数已不再单独使用，保留为了兼容性，直接调用解析逻辑
     QJsonParseError err;

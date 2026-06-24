@@ -11,19 +11,19 @@
 #include <QSet>
 #include <QPointer>
 #include <algorithm>
-#include "SqzTranslatorMask.h"
+#include "TranslatorMask.h"
 
 /**
  * @brief 工业级翻译管理单例（优化版：多屏、线程安全、懒加载、锁粒度细、自动注销）
  */
-class SqzTranslator : public QObject
+class Translator : public QObject
 {
     Q_OBJECT
 public:
-    static SqzTranslator& instance();
+    static Translator& instance();
 
-    SqzTranslator(const SqzTranslator&) = delete;
-    SqzTranslator& operator=(const SqzTranslator&) = delete;
+    Translator(const Translator&) = delete;
+    Translator& operator=(const Translator&) = delete;
 
     // ====================== 基础配置接口 ======================
     void registerLanguage(const QString& langName, const QString& filePath);
@@ -56,8 +56,8 @@ private slots:
     void onBatchRefreshWidgets();
 
 private:
-    explicit SqzTranslator(QObject* parent = nullptr);
-    ~SqzTranslator() override = default;
+    explicit Translator(QObject* parent = nullptr);
+    ~Translator() override = default;
 
     // 文件与翻译加载
     bool loadLanguageFile(const QString& langName);
@@ -90,13 +90,13 @@ private:
 
     QList<QWidget*>          m_widgetList;             // 注册窗口原始指针（自动注销时移除）
     bool                     m_uiLocked;
-    SqzTranslatorMask*       m_mask;
+    TranslatorMask*       m_mask;
 
     bool                     m_lazyLoad;               // 懒加载标志（默认 false）
 };
 
 // 全局翻译宏
-#define TR(key) SqzTranslator::instance().translate(key)
-#define MySqzTranslator SqzTranslator::instance()
+#define TR(key) Translator::instance().translate(key)
+#define MyTranslator Translator::instance()
 
 #endif // TRANSLATOR_H

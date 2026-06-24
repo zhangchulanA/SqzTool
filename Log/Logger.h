@@ -1,5 +1,5 @@
-#ifndef SqzLog_H
-#define SqzLog_H
+#ifndef Logger_H
+#define Logger_H
 
 #include <QString>
 #include <QFile>
@@ -23,7 +23,7 @@ enum LogLevel {
 };
 
 /**
- * @class SqzLog
+ * @class Logger
  * @brief 线程安全、支持滚动切割与自动清理的日志类（单例模式）
  *
  * @details 主要特性：
@@ -47,8 +47,8 @@ enum LogLevel {
  * @par 使用示例：
  * @code
  * // 初始化：日志目录 ./logs，文件前缀 app，单文件5MB，保留7天
- * SqzLog::instance().init("./logs", "app", 5, true, true, 7);
- * SqzLog::instance().setLogLevel(E_LOG_DEBUG);
+ * Logger::instance().init("./logs", "app", 5, true, true, 7);
+ * Logger::instance().setLogLevel(E_LOG_DEBUG);
  *
  * logdebug << "Debug value: " << 42;
  * loginfo  << "Application started";
@@ -56,14 +56,14 @@ enum LogLevel {
  * logerror << "Failed to open file: " << "/tmp/test.txt";
  * @endcode
  */
-class SqzLog
+class Logger
 {
 public:
     /**
      * @brief 获取单例实例
-     * @return SqzLog& 全局唯一的日志对象
+     * @return Logger& 全局唯一的日志对象
      */
-    static SqzLog& instance();
+    static Logger& instance();
 
     /**
      * @brief 初始化日志系统
@@ -105,12 +105,12 @@ public:
 
 private:
     // 构造函数与析构函数私有（单例模式）
-    SqzLog();
-    ~SqzLog();
+    Logger();
+    ~Logger();
 
     // 禁止拷贝和赋值
-    SqzLog(const SqzLog&) = delete;
-    SqzLog& operator=(const SqzLog&) = delete;
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
 
     // ---------- 内部辅助函数 ----------
     /**
@@ -218,7 +218,7 @@ private:
  * @class LoggerStream
  * @brief 流式日志临时对象，用于支持 `<<` 语法
  *
- * @details 当临时对象析构时，自动将缓冲区内容提交给 SqzLog 单例。
+ * @details 当临时对象析构时，自动将缓冲区内容提交给 Logger 单例。
  * 内部使用 `QDebug` 并调用 `noquote()` 来避免自动添加引号，同时保持对 Qt 所有类型的完美支持。
  *
  * @note 不要直接使用此类，请使用上述四个宏。
@@ -244,12 +244,12 @@ public:
     }
 
     /**
-     * @brief 析构函数：将缓冲区内容提交给 SqzLog
+     * @brief 析构函数：将缓冲区内容提交给 Logger
      */
     ~LoggerStream()
     {
         QString content = m_buffer.trimmed();  // 去除首尾空白（通常由末尾换行造成）
-        SqzLog::instance().log(m_level, m_file, m_line, m_function, content);
+        Logger::instance().log(m_level, m_file, m_line, m_function, content);
     }
 
     /**
@@ -283,4 +283,4 @@ private:
     QDebug       m_debug;      ///< QDebug 对象，负责格式化并写入缓冲区
 };
 
-#endif // SqzLog_H
+#endif // Logger_H

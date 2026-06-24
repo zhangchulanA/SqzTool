@@ -13,6 +13,8 @@
 #include <functional>
 #include <type_traits>
 
+#define llog (qDebug()<<"["<<__LINE__<<__FUNCTION__<<"]")
+
 // 用法: PROP(类型, 名称, 默认值)
 // 示例: PROP(int, age, 0)
 #define PROP(type, name, defaultValue)                         \

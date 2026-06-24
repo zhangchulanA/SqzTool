@@ -2,19 +2,19 @@ HEADERS += \
     $$PWD/SqzBus.h \
     $$PWD/SqzHub.h \
     $$PWD/SqzProp.h \
-    $$PWD/SqzQml.h \
+    $$PWD/SqzQuick.h \
     $$PWD/SqzService.h \
     $$PWD/SqzVar.h \
-    $$PWD/SqzView.h
+    $$PWD/SqzWidget.h
 
 SOURCES += \
     $$PWD/SqzBus.cpp \
     $$PWD/SqzHub.cpp \
     $$PWD/SqzProp.cpp \
-    $$PWD/SqzQml.cpp \
+    $$PWD/SqzQuick.cpp \
     $$PWD/SqzService.cpp \
     $$PWD/SqzVar.cpp \
-    $$PWD/SqzView.cpp
+    $$PWD/SqzWidget.cpp
 
 
 

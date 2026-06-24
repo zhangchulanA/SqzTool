@@ -1,4 +1,4 @@
-#include "SqzLog.h"
+#include "Logger.h"
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
@@ -12,9 +12,9 @@
 #define COLOR_ERROR  "\033[31m"   // 红色
 #define COLOR_CLEAR  "\033[0m"    // 清空颜色
 
-// ==================== SqzLog 实现 ====================
+// ==================== Logger 实现 ====================
 
-SqzLog::SqzLog()
+Logger::Logger()
     : m_runIndex(1)           // 默认从 1 开始
     , m_partIndex(1)          // 分片也从 1 开始
     , m_logLevel(E_LOG_DEBUG) // 默认显示所有日志
@@ -26,7 +26,7 @@ SqzLog::SqzLog()
     // 构造函数不做复杂操作，由 init() 完成实际初始化
 }
 
-SqzLog::~SqzLog()
+Logger::~Logger()
 {
     QMutexLocker locker(&m_mutex); // 加锁保护，避免析构时其他线程仍在写日志
     if (m_logFile.isOpen()) {
@@ -35,13 +35,13 @@ SqzLog::~SqzLog()
     }
 }
 
-SqzLog& SqzLog::instance()
+Logger& Logger::instance()
 {
-    static SqzLog obj;   // C++11 保证线程安全的静态局部变量初始化
+    static Logger obj;   // C++11 保证线程安全的静态局部变量初始化
     return obj;
 }
 
-void SqzLog::init(const QString& logDir,
+void Logger::init(const QString& logDir,
                   const QString& filePrefix,
                   qint64 maxSizeMB,
                   bool enableConsole,
@@ -88,13 +88,13 @@ void SqzLog::init(const QString& logDir,
     }
 }
 
-void SqzLog::setLogLevel(LogLevel level)
+void Logger::setLogLevel(LogLevel level)
 {
     QMutexLocker locker(&m_mutex);
     m_logLevel = level;
 }
 
-QString SqzLog::levelToStr(LogLevel level) const
+QString Logger::levelToStr(LogLevel level) const
 {
     switch (level) {
         case E_LOG_DEBUG: return "DEBUG";
@@ -105,7 +105,7 @@ QString SqzLog::levelToStr(LogLevel level) const
     }
 }
 
-QString SqzLog::colorPrefix(LogLevel level) const
+QString Logger::colorPrefix(LogLevel level) const
 {
     switch (level) {
         case E_LOG_DEBUG: return COLOR_DEBUG;
@@ -116,12 +116,12 @@ QString SqzLog::colorPrefix(LogLevel level) const
     }
 }
 
-QString SqzLog::colorSuffix() const
+QString Logger::colorSuffix() const
 {
     return COLOR_CLEAR;
 }
 
-QString SqzLog::escapeNewlines(const QString& msg) const
+QString Logger::escapeNewlines(const QString& msg) const
 {
     QString escaped = msg;
     // 顺序很重要：先转义反斜杠，再转义换行符，避免产生额外的转义
@@ -131,7 +131,7 @@ QString SqzLog::escapeNewlines(const QString& msg) const
     return escaped;
 }
 
-bool SqzLog::needRollFile()
+bool Logger::needRollFile()
 {
     // 未开启文件保存，不需要切分
     if (!m_enableFile)
@@ -166,7 +166,7 @@ bool SqzLog::needRollFile()
     return false;
 }
 
-int SqzLog::getMaxRunForDate(const QString& date)
+int Logger::getMaxRunForDate(const QString& date)
 {
     int maxRun = 0;
     QDir dir(m_logDir);
@@ -188,7 +188,7 @@ int SqzLog::getMaxRunForDate(const QString& date)
     return maxRun;
 }
 
-void SqzLog::createNewRollFile()
+void Logger::createNewRollFile()
 {
     // 先关闭当前打开的文件（如果有）
     if (m_logFile.isOpen()) {
@@ -222,7 +222,7 @@ void SqzLog::createNewRollFile()
         m_enableFile = false;
         m_partIndex = 1;   // 重置分片序号
         // 输出警告到控制台（此时文件已不可用，只能用 qWarning）
-        qWarning().noquote() << QString("[SqzLog] Failed to open log file: %1, file logging disabled.")
+        qWarning().noquote() << QString("[Logger] Failed to open log file: %1, file logging disabled.")
                                      .arg(fullPath);
         return;
     }
@@ -234,7 +234,7 @@ void SqzLog::createNewRollFile()
     m_flushCounter = 0;
 }
 
-void SqzLog::cleanOldLogs(int keepDays)
+void Logger::cleanOldLogs(int keepDays)
 {
     if (keepDays <= 0) return;
 
@@ -256,15 +256,15 @@ void SqzLog::cleanOldLogs(int keepDays)
         if (info.lastModified().msecsTo(now) > keepMsecs) {
             if (QFile::remove(info.absoluteFilePath())) {
                 // 删除成功，输出到控制台（避免递归使用日志系统）
-                qDebug().noquote() << QString("[SqzLog] Removed old log: %1").arg(info.fileName());
+                qDebug().noquote() << QString("[Logger] Removed old log: %1").arg(info.fileName());
             } else {
-                qWarning().noquote() << QString("[SqzLog] Failed to remove old log: %1").arg(info.fileName());
+                qWarning().noquote() << QString("[Logger] Failed to remove old log: %1").arg(info.fileName());
             }
         }
     }
 }
 
-void SqzLog::log(LogLevel level, const char* file, int line, const char* function, const QString& msg)
+void Logger::log(LogLevel level, const char* file, int line, const char* function, const QString& msg)
 {
     QMutexLocker locker(&m_mutex);  // 确保线程安全
 

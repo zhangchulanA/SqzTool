@@ -14,7 +14,7 @@
 #include <QPointer>
 #include <functional>
 #include <QJsonArray>
-#include "SqzLog.h"
+#include "Logger.h"
 /**
  * @brief HTTP 响应结构体，包含状态码、数据、错误信息等
  */

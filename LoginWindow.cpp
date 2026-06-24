@@ -1,7 +1,7 @@
 #include "LoginWindow.h"
 
-LoginWindow::LoginWindow(QObject *parent) : SqzQml(parent)
+LoginWindow::LoginWindow(QObject *parent) : SqzQuick(parent)
 {
 logerror;
 }
-SQZ_HUB_QML(LoginWindow)
+SQZQUICK_NOARG(LoginWindow)

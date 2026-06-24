@@ -1,12 +1,12 @@
 #include "RadioUdpManager.h"
 #include <QDebug>
-
+#include "Logger.h"
 RadioUdpManager::RadioUdpManager(QObject *parent)
     : QObject(parent)
     , m_udpSocket(nullptr)
     , m_targetPort(0)
     , m_maxBytesPerSecond(5120) // 默认 5KB/s
-    , m_timeSliceMs(20)         // 固定20ms时间片
+    , m_timeSliceMs(500)         // 固定20ms时间片
     , m_isSending(false)
     , m_currentSeqNum(0)
     , m_highWaterMark(50 * 1024)  // 默认高水位 50KB
@@ -32,6 +32,7 @@ RadioUdpManager::RadioUdpManager(QObject *parent)
     connect(m_sendTimer, &QTimer::timeout, this, &RadioUdpManager::onSendTimer);
     connect(m_monitorTimer, &QTimer::timeout, this, &RadioUdpManager::onMonitorTimer);
     connect(m_timeoutTimer, &QTimer::timeout, this, &RadioUdpManager::onTimeoutTimer);
+    connect(m_udpSocket,&QUdpSocket::readyRead,this,&RadioUdpManager::onReadyRead);
 
     // 默认启动定时器（等待init后实际生效）
     m_sendTimer->start();
@@ -48,12 +49,22 @@ RadioUdpManager::~RadioUdpManager()
 }
 
 // --- 初始化 ---
-void RadioUdpManager::init(const QHostAddress &addr, quint16 port, qint64 maxBytesPerSecond)
+void RadioUdpManager::init(const QHostAddress &localAddr, quint16 localPort,
+                           const QHostAddress &targetAddr, quint16 targetPort, qint64 maxBytesPerSecond)
 {
-    m_targetAddr = addr;
-    m_targetPort = port;
+    m_targetAddr = targetAddr;
+    m_targetPort = targetPort;
     m_maxBytesPerSecond = maxBytesPerSecond;
-    qDebug() << "[RadioUdpManager] Init OK, Target:" << addr.toString() << port
+
+    // 绑定端口，允许广播和地址复用（实际电台不需要，加上也没事）
+    if (!m_udpSocket->bind(localAddr, localPort, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
+        qWarning() << "[AckReceiver] Failed to bind port"<<localAddr.toString() << localPort << m_udpSocket->errorString();
+        return;
+    }
+
+    qDebug() << "[RadioUdpManager] Init OK, "
+                "Local:"  << localAddr.toString() << localPort
+             << ", Target:" << targetAddr.toString() << targetPort
              << ", MaxRate:" << maxBytesPerSecond << "B/s";
 }
 
@@ -88,7 +99,7 @@ void RadioUdpManager::processAck(quint16 seqNum)
     QMutexLocker locker(&m_mutex);
     if (m_pendingMap.contains(seqNum)) {
         m_pendingMap.remove(seqNum);
-        emit packetAcked(seqNum);
+        //        emit packetAcked(seqNum);
         // qDebug() << "[ACK] Seq" << seqNum << "confirmed.";
     } else {
         // 可能是重复ACK或已超时移除，忽略
@@ -118,7 +129,6 @@ void RadioUdpManager::onSendTimer()
     // 【防重入】如果上一次还没执行完，直接返回，避免定时器叠加
     if (m_isSending) return;
     m_isSending = true;
-
     // 1. 计算本时间片配额（例如 20ms 内允许发送的字节数）
     //    公式： (每秒最大字节数 * 时间片毫秒数) / 1000
     qint64 sliceQuota = (m_maxBytesPerSecond * m_timeSliceMs) / 1000;
@@ -126,7 +136,6 @@ void RadioUdpManager::onSendTimer()
         // 如果每秒限流太小（如<50B/s），强制至少发1个字节，防止饿死
         sliceQuota = 1;
     }
-
     QMutexLocker locker(&m_mutex);
 
     // 2. 优先填充发送队列：如果飞行队列太大（网络拥塞），暂缓从待发队列取包
@@ -135,7 +144,6 @@ void RadioUdpManager::onSendTimer()
         m_isSending = false;
         return;
     }
-
     // 3. 【核心优先级逻辑】在配额内循环取包发送
     //    优先级：m_retryQueue (重传) > m_normalQueue (新数据)
     qint64 remainingQuota = sliceQuota;
@@ -149,17 +157,9 @@ void RadioUdpManager::onSendTimer()
         if (!m_retryQueue.isEmpty()) {
             packet = m_retryQueue.dequeue();
             isRetry = true;
-            // 重传包必须知道原始SeqNum，需要从pendingMap中查找，或者将SeqNum编码在数据头
-            // 这里简化：我们假设重传队列存储的是完整报文（包含协议头），通过解析头部获取SeqNum
-            // 实际开发中，应在数据包前4字节固定存放SeqNum。这里为了演示，我们从pendingMap反向查找。
-            // 注意：如果重传队列存储的是原始负载，缺少SeqNum，我们需要改进数据结构。
-            // 【最佳实践】改进：将 PacketMeta 直接放入重传队列，而不是QByteArray。
-            // 但由于我们沿用双QByteArray队列设计，这里暂时只演示逻辑。
-            // 修正：为了严谨，我们将在后面重构为 QQueue<PacketMeta>，但为了快速展示逻辑，我们假设数据前2字节为SeqNum。
-            // 如果数据长度<2，视为非法包，丢弃。
             if (packet.size() < 2) continue;
-            // 假设大端序存储SeqNum
-            seqNum = (quint16)((unsigned char)packet[0] << 8) | (unsigned char)packet[1];
+            // 小端序存储SeqNum
+            seqNum = (quint16)((unsigned char)packet[1] << 8) | (unsigned char)packet[0];
         }
         // ---- 3.2 若重传队列空，则从普通队列取 ----
         else if (!m_normalQueue.isEmpty()) {
@@ -193,6 +193,7 @@ void RadioUdpManager::onSendTimer()
 
         // ---- 3.4 发送数据（交给系统协议栈） ----
         qint64 sent = m_udpSocket->writeDatagram(packet, m_targetAddr, m_targetPort);
+        logdebug <<packet.toHex()<<m_targetAddr.toString()<<m_targetPort;
         if (sent == -1) {
             // 发送失败（如系统缓冲区满），将包放回队列，停止本次发送
             if (isRetry) m_retryQueue.prepend(packet);
@@ -204,7 +205,6 @@ void RadioUdpManager::onSendTimer()
         remainingQuota -= packet.size();
         // 统计速率
         m_bytesSentInCurrentSecond += packet.size();
-
         // ---- 3.5 更新飞行队列（只有非重传的新包才加入Pending等待ACK） ----
         if (!isRetry) {
             PacketMeta meta;
@@ -229,7 +229,6 @@ void RadioUdpManager::onSendTimer()
     for (auto it = m_pendingMap.begin(); it != m_pendingMap.end(); ++it) {
         totalPending += it.value().data.size();
     }
-
     // 如果当前处于告警状态，且积压低于低水位，清除告警
     if (m_isBufferWarning && totalPending < m_lowWaterMark) {
         m_isBufferWarning = false;
@@ -267,7 +266,7 @@ void RadioUdpManager::onTimeoutTimer()
                 meta.retryCount++;
                 // 注意：这里将数据拷贝一份放入重传队列
                 m_retryQueue.enqueue(meta.data);
-                emit packetRetrying(meta.seqNum, meta.retryCount);
+                //                emit packetRetrying(meta.seqNum, meta.retryCount);
                 qDebug() << "[Retry] Seq" << meta.seqNum << "timeout, retry" << meta.retryCount;
 
                 // 更新时间戳，防止刚放入重传队列又被本定时器立即移出
@@ -282,10 +281,54 @@ void RadioUdpManager::onTimeoutTimer()
             }
         }
     }
-
     // 移除需要丢弃的报文
     for (quint16 key : timeoutKeys) {
         m_pendingMap.remove(key);
+    }
+}
+
+void RadioUdpManager::onReadyRead()
+{
+    // 循环读取所有待处理的数据报（防止UDP粘包，每个包独立读）
+    while (m_udpSocket->hasPendingDatagrams()) {
+        QByteArray datagram;
+        datagram.resize(m_udpSocket->pendingDatagramSize());
+        QHostAddress senderAddr;
+        quint16 senderPort;
+
+        // 读取数据报（senderAddr/senderPort 可用来校验是否来自合法的电台IP，可选）
+        qint64 readSize = m_udpSocket->readDatagram(datagram.data(), datagram.size(), &senderAddr, &senderPort);
+        if (readSize == -1) {
+            qWarning() << "[AckReceiver] Read error:" << m_udpSocket->errorString();
+            continue;
+        }
+
+        // 假设1：前2个字节是小端序（网络序）的 quint16
+        if (datagram.size() < 2) {
+            qWarning() << "[AckReceiver] Packet too small (<2 bytes), ignore.";
+            continue;
+        }
+        //收到的是ack反馈
+        else if(datagram.size() == 2) {
+            // 小端序转换：将 char[1] 作为高位，char[0] 作为低位
+            quint16 seqNum = (static_cast<quint16>(static_cast<unsigned char>(datagram[1])) << 8)
+                    | static_cast<quint16>(static_cast<unsigned char>(datagram[0]));
+            // 回调给管理器，触发ACK确认
+            processAck(seqNum);
+        }
+        else if(datagram.size()>2){
+            //发送ack反馈数据
+            qint64 sent = m_udpSocket->writeDatagram(datagram.mid(0,2), m_targetAddr, m_targetPort);
+            if (sent == -1) {
+                // 发送ack失败
+                qWarning() << "发送ack失败";
+                continue;
+            }
+            //抛出期望数据
+            emit getMessage(datagram.mid(2,datagram.size()-2));
+            // 可选：校验发送方IP，防止恶意包或串台
+            // if (senderAddr != expectedRadioIp) { continue; }
+        }
     }
 }
 

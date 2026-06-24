@@ -1,5 +1,5 @@
 HEADERS += \
-    $$PWD/SqzLog.h
+    $$PWD/Logger.h
 
 SOURCES += \
-    $$PWD/SqzLog.cpp
+    $$PWD/Logger.cpp

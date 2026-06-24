@@ -225,7 +225,7 @@ void SqzProp::Dump() const
     for (auto it = m_objects.begin(); it != m_objects.end(); ++it) {
         QObject* obj = it.value();
         if (!obj) {
-            qDebug() << "  (null)";
+            logdebug << "  (null)";
             continue;
         }
 

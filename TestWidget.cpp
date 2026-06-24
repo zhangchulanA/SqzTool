@@ -1,7 +1,7 @@
 #include "TestWidget.h"
 #include "ui_TestWidget.h"
 
-#include "SqzTranslator.h"
+#include "Translator.h"
 #include "SqzBus.h"
 #include <CustomSearchBox.h>
 #include "SqzBus.h"
@@ -18,7 +18,7 @@ TestWidget::TestWidget(QWidget *parent) :
     ui(new Ui::TestWidget)
 {
     ui->setupUi(this);
-    MySqzTranslator.registerWidget(this);
+    MyTranslator.registerWidget(this);
     M_InitTrUi();
     qRegisterMetaType<QHostAddress>("QHostAddress");
 
@@ -147,4 +147,4 @@ void TestWidget::ReceiveUdpData(const QVariantList &list)
     QByteArray data = list[2].toByteArray();
     logdebug <<address.toString()<<port<<data;
 }
-SQZ_HUB(TestWidget)
+SQZWIDGET_NOARG(TestWidget)

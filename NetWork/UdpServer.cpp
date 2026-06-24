@@ -2,7 +2,7 @@
 
 #include <QDebug>
 #include <QNetworkConfiguration>
-#include <SqzLog.h>
+#include <Logger.h>
 #include <SqzBus.h>
 #include <QMetaType>
 #define log (qDebug()<<"["<<__LINE__<<__FUNCTION__<<"]")

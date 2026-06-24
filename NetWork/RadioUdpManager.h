@@ -33,8 +33,16 @@ public:
     explicit RadioUdpManager(QObject *parent = nullptr);
     ~RadioUdpManager();
 
-    // 初始化：目标地址、端口、每秒最大发送字节数（如 5120 代表 5KB/s）
-    void init(const QHostAddress &addr, quint16 port, qint64 maxBytesPerSecond);
+    /**
+     * @brief init
+     * @param localAddr 绑定本地地址
+     * @param localPort 绑定本地端口
+     * @param targetAddr 目标地址
+     * @param targetPort 目标端口
+     * @param maxBytesPerSecond 每秒最大发送字节数（如 5120 代表 5KB/s）
+     */
+    void init(const QHostAddress &localAddr, quint16 localPort,
+              const QHostAddress &targetAddr, quint16 targetPort, qint64 maxBytesPerSecond);
 
     // 业务层调用：发送数据（线程安全）
     void sendData(const QByteArray &data);
@@ -57,6 +65,8 @@ signals:
     void packetAcked(quint16 seqNum);
     // 报文丢失/重传信号（用于外部日志）
     void packetRetrying(quint16 seqNum, int retryCount);
+    //获取真正想要的数据，不包括ack
+    void getMessage(const QByteArray& data);
 
 private slots:
     // 核心发送定时器：负责根据配额取包发送（限流 + 优先级重传）
@@ -65,6 +75,8 @@ private slots:
     void onMonitorTimer();
     // 超时重传定时器：扫描飞行队列，判定超时
     void onTimeoutTimer();
+    //接收数据
+     void onReadyRead();
 
 private:
     // 报文元数据结构
@@ -122,7 +134,11 @@ private:
     static const int RTO_TIMEOUT_MS = 800;      // 重传超时时间(毫秒)，可依据RTT动态调整
 };
 
+#endif // RADIOUDPMANAGER_H
 
+
+
+#if A
 /**
  * @brief UDP ACK 接收解析器
  * 监听指定端口，从收到的UDP包中提取序列号(SeqNum)，并通知RadioUdpManager
@@ -177,12 +193,13 @@ private slots:
                 continue;
             }
 
-            // 大端序转换：将 char[0] 作为高位，char[1] 作为低位
-            quint16 seqNum = (static_cast<quint16>(static_cast<unsigned char>(datagram[0])) << 8)
-                           | static_cast<quint16>(static_cast<unsigned char>(datagram[1]));
+            // 小端序转换：将 char[1] 作为高位，char[0] 作为低位
+            quint16 seqNum = (static_cast<quint16>(static_cast<unsigned char>(datagram[1])) << 8)
+                           | static_cast<quint16>(static_cast<unsigned char>(datagram[0]));
 
             // 可选：校验发送方IP，防止恶意包或串台（建议开启）
-            // if (senderAddr != expectedRadioIp) { continue; }
+//             if (senderAddr != expectedRadioIp) { continue; }
+
 
             // 回调给管理器，触发ACK确认
             m_manager->processAck(seqNum);
@@ -197,11 +214,8 @@ private:
     RadioUdpManager *m_manager;
 };
 
-#endif // RADIOUDPMANAGER_H
 
 
-
-#if A
 // ====== 1. 创建发送管理器 ======
  RadioUdpManager manager;
 
