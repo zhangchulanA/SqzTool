@@ -1,6 +1,10 @@
 #include "RadioLink.h"
 #include <QDebug>
 #include <QDateTime>
+#include "RF.h"
+#include "Logger.h"
+
+int RadioLink::MAX_RETRY_COUNT = 5;
 
 RadioLink::RadioLink(QObject *parent)
     : QObject(parent)
@@ -19,6 +23,8 @@ RadioLink::RadioLink(QObject *parent)
     , m_lastSpeedEmitTime(0)
     , m_isSending(false)
 {
+
+    MAX_RETRY_COUNT = 5;
     m_udpSocket = new QUdpSocket(this);
     connect(m_udpSocket, &QUdpSocket::readyRead, this, &RadioLink::onReadyRead);
     connect(m_udpSocket, static_cast<void (QUdpSocket::*)(QAbstractSocket::SocketError)>(&QUdpSocket::error),
@@ -48,8 +54,8 @@ RadioLink::~RadioLink()
 }
 
 void RadioLink::init(const QHostAddress &localAddr, quint16 localPort,
-                           const QHostAddress &targetAddr, quint16 targetPort,
-                           qint64 maxBytesPerSecond)
+                     const QHostAddress &targetAddr, quint16 targetPort,
+                     qint64 maxBytesPerSecond)
 {
     QMutexLocker locker(&m_mutex);
     m_targetAddr = targetAddr;
@@ -73,7 +79,6 @@ void RadioLink::sendData(const QByteArray &data)
 {
     if (data.isEmpty()) return;
 
-    QMutexLocker locker(&m_mutex);
     m_normalQueue.enqueue(data);
     m_totalPendingBytes += data.size();
 
@@ -81,13 +86,14 @@ void RadioLink::sendData(const QByteArray &data)
     if (m_totalPendingBytes > m_highWaterMark && !m_isBufferWarning) {
         m_isBufferWarning = true;
         emit bufferWarning(true, m_totalPendingBytes);
-        qDebug() << "[Buffer] High water exceeded, pending:" << m_totalPendingBytes;
+        qDebug() << "超过高水位报警:" << m_totalPendingBytes;
     }
 
     // 如果发送定时器未激活，立即启动（触发一次发送）
     if (!m_sendTimer->isActive()) {
         m_sendTimer->start(0);
     }
+    logdebug <<"原始数据"<< LogData(data) <<"size" <<data.size();
 }
 
 void RadioLink::processAck(quint16 seqLow)
@@ -123,6 +129,11 @@ void RadioLink::setWaterMarks(qint64 highWater, qint64 lowWater)
     m_lowWaterMark = lowWater;
 }
 
+void RadioLink::setMaxRetryCount(int count)
+{
+    MAX_RETRY_COUNT = count;
+}
+
 // ---------- 私有槽函数 ----------
 
 void RadioLink::onSendTimer()
@@ -144,30 +155,24 @@ void RadioLink::onSendTimer()
     // 检查是否达到下次发送时间
     if (now < m_nextSendTimeMs) {
         // 未到时间，重新设置定时器
-        m_sendTimer->start(m_nextSendTimeMs - now);
+        m_sendTimer->start(m_nextSendTimeMs - now); //包大小不固定 ，灵活改变定时器发送时间
         m_isSending = false;
         return;
     }
 
     // 发送一个包
     if (!sendOnePacket()) {
-        // 发送失败（例如socket错误），稍后重试
-        m_sendTimer->start(50);
+        //指数退避
+        m_sendFailDelayMs = qMin(m_sendFailDelayMs * 2,1000);
+        m_sendTimer->start(m_sendFailDelayMs);
+        logerror << "发送失败，重发： "<<m_sendFailDelayMs << "ms";
         m_isSending = false;
         return;
+    }else{
+        //成功后逐渐恢复
+        m_sendFailDelayMs = qMax(50,m_sendFailDelayMs / 2);
     }
 
-    // 发送成功，计算下次发送时间（基于当前发送的包大小，但我们无法获取已发送包的大小？）
-    // 我们可以在sendOnePacket中返回发送的包大小，但当前设计未返回。为了简化，我们取队列头部的大小（如果有包的话）
-    // 但已发送的包已出队，我们无法获取其大小，但我们可以从之前保存的变量？我们可以让sendOnePacket返回size。
-    // 重构：让sendOnePacket返回发送的字节数，并更新m_nextSendTime。
-    // 但为了简化，我们在sendOnePacket内部更新m_nextSendTime，但需要传入当前时间。
-    // 改进：sendOnePacket内部计算间隔并设置m_nextSendTime。
-    // 因为我们发送的是当前包，所以我们可以知道大小。我们修改sendOnePacket，使其返回bool，并在内部设置m_nextSendTime。
-    // 由于我们已经实现了sendOnePacket，需要重写。下面我们将重新实现sendOnePacket。
-
-    // 由于上述设计，我们将在sendOnePacket中处理m_nextSendTime。
-    // 但这里我们调用sendOnePacket后，它已经更新了m_nextSendTime，所以我们不再重复计算。
 
     // 如果队列还有包，启动定时器在合适时间触发
     if (!m_normalQueue.isEmpty() || !m_retryQueue.isEmpty()) {
@@ -198,11 +203,12 @@ bool RadioLink::sendOnePacket()
     if (!m_retryQueue.isEmpty()) {
         packet = m_retryQueue.dequeue();
         isRetry = true;
-        // 从数据中提取序列号（低16位），但我们需要找到对应的pending包来更新重传次数？
-        // 我们可以在pendingMap中根据低16位找到，但为了简便，我们从pendingMap中获取重传次数，但低16位可能冲突？但窗口限制保证唯一。
-        if (packet.size() < 2) return false;
-        quint16 seqLow = (static_cast<quint16>(static_cast<unsigned char>(packet[1])) << 8)
-                         | static_cast<quint16>(static_cast<unsigned char>(packet[0]));
+        // 从数据中提取序列号（低16位）
+        if (packet.size() < 4) return false;
+        quint16 seqLow = (static_cast<quint32>(static_cast<unsigned char>(packet[3]))<< 24)
+                | static_cast<quint32>(static_cast<unsigned char>(packet[2])<< 16)
+                | static_cast<quint32>(static_cast<unsigned char>(packet[1])<< 8)
+                | static_cast<quint32>(static_cast<unsigned char>(packet[0]));
         auto it = m_pendingMap.find(seqLow);
         if (it != m_pendingMap.end()) {
             // 更新重传时间和计数
@@ -216,17 +222,21 @@ bool RadioLink::sendOnePacket()
         packet = m_normalQueue.dequeue();
         isRetry = false;
         fullSeq = getNextSeqNum();
-        if (packet.size() < 2) {
-            packet.prepend(QByteArray(2, char(0)));
-        }
-        packet[0] = (fullSeq >> 8) & 0xFF;
-        packet[1] = fullSeq & 0xFF;
+
+        QByteArray header;
+        header[0] =  fullSeq & 0xFF;
+        header[1] = (fullSeq >> 8) & 0xFF;
+        header[2] = (fullSeq >> 16) & 0xFF;
+        header[3] = (fullSeq >> 24) & 0xFF;
+
+        packet = header + packet;
     } else {
         return false; // 无包
     }
 
     // 发送数据报
     qint64 sent = m_udpSocket->writeDatagram(packet, m_targetAddr, m_targetPort);
+     logdebug << "实际发送：" << LogData(packet) <<"size"<<packet.size();
     if (sent == -1) {
         // 发送失败，放回队列
         if (isRetry) m_retryQueue.prepend(packet);
@@ -246,7 +256,7 @@ bool RadioLink::sendOnePacket()
         meta.retryCount = 0;
         // 检查飞行窗口
         if (m_pendingMap.size() < MAX_FLIGHT_WINDOW) {
-            m_pendingMap.insert(static_cast<quint16>(fullSeq & 0xFFFF), meta);
+            m_pendingMap.insert(static_cast<quint32>(fullSeq & 0xFFFFFFFF), meta);
         } else {
             // 窗口满，将包放回普通队列（紧急情况，不应发生）
             m_normalQueue.prepend(packet);
@@ -295,17 +305,17 @@ void RadioLink::onTimeoutTimer()
                 m_totalPendingBytes += meta.data.size(); // 增加积压
                 // 更新时间戳，防止立即再次超时
                 meta.sendTimeMs = now;
-                qDebug() << "[Retry] Seq" << (meta.seqNum & 0xFFFF)
-                         << "retry" << meta.retryCount << ", RTO=" << m_rto;
-                emit packetRetrying(static_cast<quint16>(meta.seqNum & 0xFFFF), meta.retryCount);
+                qDebug() << "重传序列号" << (meta.seqNum & 0xFFFFFFFF)
+                         << "重传次数" << meta.retryCount << ", RTO=" << m_rto;
+                emit packetRetrying(static_cast<quint32>(meta.seqNum & 0xFFFFFFFF), meta.retryCount);
 
                 // 如果发送定时器未激活，立即启动
                 if (!m_sendTimer->isActive()) {
                     m_sendTimer->start(0);
                 }
             } else {
-                // 超重传次数，丢弃
-                qDebug() << "[Drop] Seq" << (meta.seqNum & 0xFFFF) << "dropped";
+                // 超过重传次数，丢弃
+                qDebug() << "超过重传次数" << (meta.seqNum & 0xFFFFFFFF) << "丢弃";
                 m_totalPendingBytes -= meta.data.size();
                 toRemove.append(it.key());
             }
@@ -337,19 +347,21 @@ void RadioLink::onReadyRead()
             continue;
         }
 
-        if (datagram.size() < 2) continue;
+        if (datagram.size() < 4) continue;
 
         // 如果只有2字节，视为ACK
-        if (datagram.size() == 2) {
-            quint16 seqLow = (static_cast<quint16>(static_cast<unsigned char>(datagram[1])) << 8)
-                             | static_cast<quint16>(static_cast<unsigned char>(datagram[0]));
+        if (datagram.size() == 4) {
+            quint16 seqLow = (static_cast<quint32>(static_cast<unsigned char>(datagram[3]))<< 24)
+                    | static_cast<quint32>(static_cast<unsigned char>(datagram[2])<< 16)
+                    | static_cast<quint32>(static_cast<unsigned char>(datagram[1])<< 8)
+                    | static_cast<quint32>(static_cast<unsigned char>(datagram[0]));
             processAck(seqLow);
         } else {
-            // 业务数据：回复ACK（前2字节）
-            QByteArray ack = datagram.left(2);
+            // 业务数据：回复ACK（前4字节）
+            QByteArray ack = datagram.left(4);
             m_udpSocket->writeDatagram(ack, sender, port); // 回复给发送方
-            // 向上层抛数据（去掉前2字节）
-            emit getMessage(datagram.mid(2));
+            // 向上层抛数据（去掉前4字节 即序列号）
+            emit getMessage(datagram.mid(4));
         }
     }
 }
@@ -374,7 +386,7 @@ quint32 RadioLink::getNextSeqNum()
 void RadioLink::updateRtt(qint64 rttMs)
 {
     // 简单平滑：SRTT = 0.875*SRTT + 0.125*RTT
-    // RTO = SRTT + 4*RTTVAR，这里简化为 SRTT + 4*|RTT-SRTT|
+    // RTO =  SRTT + 4*|RTT-SRTT|
     static const double ALPHA = 0.125;
     static const double BETA = 0.25;
     qint64 diff = rttMs - m_rtt;

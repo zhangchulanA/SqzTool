@@ -15,8 +15,19 @@
 
 #define llog (qDebug()<<"["<<__LINE__<<__FUNCTION__<<"]")
 
-// 用法: PROP(类型, 名称, 默认值)
-// 示例: PROP(int, age, 0)
+
+inline QString LogData(const QByteArray& data){
+    QString text;
+    for(int i=0;i<data.size();i++){
+        text += QString::number(data[i],16)+',';
+    }
+    return  text;
+}
+
+
+
+// 用法: VIEW_MODE(类型, 名称, 默认值)
+// 示例: VIEW_MODE(int, age, 0)
 #define VIEW_MODE(type, name, defaultValue)                         \
     Q_PROPERTY(type name READ name WRITE set##name NOTIFY name##Changed) \
 public:                                                            \

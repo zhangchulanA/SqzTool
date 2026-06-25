@@ -9,4 +9,5 @@ moc_*
 .qmake.stash
 #忽略log
 *.log
-.sqat/
+
+SqzLib/

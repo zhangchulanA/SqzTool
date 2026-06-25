@@ -5,35 +5,24 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++17
 
-#DEFINES += DEBUG
-##   RELEASE 表示当前是发布环境，会产生动态库文件
-##   DEBUG   表示当前是调试环境，会生成可执行文件
-#if(contains(DEFINES, RELEASE)){
-#    TEMPLATE = lib
-#    CONFIG += plugin
-#    DEFINES += SqzTool
-#}
-
-#if(contains(DEFINES, DEBUG)){
-#    TEMPLATE = app
-#}
 
 INCLUDEPATH += /opt/QtFluentWidgets/include/Fluent
 LIBS += -L/opt/QtFluentWidgets/lib -lQtFluentWidgets
 
 VERSION = 1.0.0
-DEFINES += MODULE_PREFIX=\\\"SqzTool\\\"
+DEFINES += MODULE_PREFIX=\\\"Sqz\\\"
 CONFIG(debug,debug|release){
     #debug专属配置
     TEMPLATE = app
-    TARGET = SqzToolApp
+    TARGET = SqzApp
     DEFINES += DEBUG_MODE
     message("Debug模式：生成可执行程序")
 }else{
     #release 专属配置
     DEFINES += RELEASE_MODE
     TEMPLATE = lib
-    TARGET = SqzTool
+    CONFIG += staticlib
+    TARGET = Sqz
     DESTDIR = $$PWD/SqzLib
     message("Release模式：生成库文件,在当前目录SqzLib文件夹下")
 }

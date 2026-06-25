@@ -1,8 +1,10 @@
 #!/bin/bash
 # ============================================================================
-# 脚本名称: MakeRun.sh
-# 功能: 打包 SqzTool 库，生成 .tar.gz 和 .run 安装包
-# 使用: 在 .pro 文件中添加 QMAKE_POST_LINK += $$PWD/MakeRun.sh $$VERSION $$PWD
+# 脚本名称: MakeRun_2.sh
+# 功能: 打包 Sqz 库，生成 .tar.gz 和 .run 安装包
+#      安装后所有头文件平铺于 /usr/include/Sqz，库文件置于 /usr/lib/Sqz
+#      安装时会自动删除旧版本目录
+# 使用: 在 .pro 文件中添加 QMAKE_POST_LINK += $$PWD/MakeRun_2.sh $$VERSION $$PWD
 # ============================================================================
 
 set -e
@@ -15,7 +17,7 @@ if [ -z "$VERSION" ] || [ -z "$PRO_PWD" ]; then
     exit 1
 fi
 
-PACKAGE_NAME="SqzTool"
+PACKAGE_NAME="Sqz"
 SYS_NAME=$(uname -s)
 TIMESTAMP=$(date +%Y%m%d)
 BASE_NAME="${PACKAGE_NAME}_${SYS_NAME}_v${VERSION}"
@@ -29,30 +31,20 @@ mkdir -p "$OUTPUT_DIR"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR/$PACKAGE_NAME"
 
-echo "========== 开始打包 SqzTool =========="
+echo "========== 开始打包 Sqz =========="
 echo "源码目录: $PRO_PWD"
 echo "版本号: $VERSION"
 echo "输出目录: $OUTPUT_DIR"
 echo "包名: $BASE_NAME"
 
-# 1. 收集所有 .h 文件（排除根目录，只保留子文件夹内的）
-echo "收集头文件..."
+# 1. 收集所有 .h 文件（平铺到 Sqz 根目录，不保留子目录结构）
+echo "收集头文件（平铺）..."
 cd "$PRO_PWD"
 find . -mindepth 2 -name "*.h" -type f | while read header; do
-    target_path="${header#./}"
-    mkdir -p "$WORK_DIR/$PACKAGE_NAME/$(dirname "$target_path")"
-    cp "$header" "$WORK_DIR/$PACKAGE_NAME/$target_path"
+    cp "$header" "$WORK_DIR/$PACKAGE_NAME/"
 done
 
-# 2. 收集所有 .cpp 文件（排除根目录，只保留子文件夹内的）
-echo "收集源文件..."
-find . -mindepth 2 -name "*.cpp" -type f | while read src; do
-    target_path="${src#./}"
-    mkdir -p "$WORK_DIR/$PACKAGE_NAME/$(dirname "$target_path")"
-    cp "$src" "$WORK_DIR/$PACKAGE_NAME/$target_path"
-done
-
-# 3. 复制 SqzLib 全部文件（库文件）
+# 2. 复制 SqzLib 全部文件（库文件）
 echo "收集库文件..."
 if [ -d "$PRO_PWD/SqzLib" ]; then
     mkdir -p "$WORK_DIR/$PACKAGE_NAME/SqzLib"
@@ -63,179 +55,81 @@ else
     exit 1
 fi
 
-# 4. 生成 sqztool.prf（修正 INCLUDEPATH 路径，基于临时目录结构）
-echo "生成 sqztool.prf..."
-cat > "$WORK_DIR/sqztool.prf" << 'EOF'
-# sqztool.prf - 使用方法: CONFIG += sqztool
-SQZTOOL_ROOT = /opt/SqzTool
-INCLUDEPATH += $$SQZTOOL_ROOT/include
-EOF
-
-# 遍历临时目录下的所有子目录（排除 SqzLib，因为它是库目录，不包含头文件）
-cd "$WORK_DIR/$PACKAGE_NAME"
-find . -mindepth 1 -type d ! -path "./SqzLib*" | while read dir; do
-    clean_dir="${dir#./}"
-    if find "$dir" -maxdepth 1 -name "*.h" | grep -q .; then
-        echo "INCLUDEPATH += \$\$SQZTOOL_ROOT/include/$clean_dir" >> "$WORK_DIR/sqztool.prf"
-    fi
-done
-
-cat >> "$WORK_DIR/sqztool.prf" << 'EOF'
-LIBS += -L$$SQZTOOL_ROOT/lib -lSqzTool
-EOF
-
-# 5. 生成 install.sh（增加了赋予 /opt/SqzTool 全部权限的步骤）
+# 3. 生成 install.sh（安装脚本，含删除旧版本逻辑）
 echo "生成 install.sh..."
 cat > "$WORK_DIR/install.sh" << 'EOF'
 #!/bin/bash
-# SqzTool 安装脚本（增强版，确保 CONFIG += sqztool 可用）
+# Sqz 安装脚本 - 平铺头文件到 /usr/include/Sqz，库文件到 /usr/lib/Sqz
+# 安装前会删除旧版本的所有文件
 
-INSTALL_DIR="/opt/SqzTool"
-INCLUDE_DIR="$INSTALL_DIR/include"
-LIB_DIR="$INSTALL_DIR/lib"
+HEADER_INSTALL_DIR="/usr/include/Sqz"
+LIB_INSTALL_DIR="/usr/lib/Sqz"
 
 echo "=========================================="
-echo "安装 SqzTool 到 $INSTALL_DIR"
+echo "安装 Sqz 到系统目录"
+echo "头文件: $HEADER_INSTALL_DIR"
+echo "库文件: $LIB_INSTALL_DIR"
 echo "=========================================="
 
-sudo mkdir -p "$INCLUDE_DIR" "$LIB_DIR"
+# 删除旧的头文件目录（确保完全清理）
+if [ -d "$HEADER_INSTALL_DIR" ]; then
+    echo "检测到旧版本头文件，正在删除..."
+    sudo rm -rf "$HEADER_INSTALL_DIR"
+fi
+
+# 删除旧的库目录（确保完全清理）
+if [ -d "$LIB_INSTALL_DIR" ]; then
+    echo "检测到旧版本库文件，正在删除..."
+    sudo rm -rf "$LIB_INSTALL_DIR"
+fi
+
+# 重新创建目录
+sudo mkdir -p "$HEADER_INSTALL_DIR" "$LIB_INSTALL_DIR"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "安装头文件..."
-cd "$SCRIPT_DIR/SqzTool"
-find . -name "*.h" -type f | while read header; do
-    target_path="${header#./}"
-    target_dir="$INCLUDE_DIR/$(dirname "$target_path")"
-    sudo mkdir -p "$target_dir"
-    sudo cp "$header" "$target_dir/"
+echo "安装头文件（平铺）..."
+cd "$SCRIPT_DIR/Sqz"
+# 复制所有 .h 文件到目标目录（不保留子目录）
+find . -maxdepth 1 -name "*.h" -type f | while read header; do
+    sudo cp "$header" "$HEADER_INSTALL_DIR/"
 done
 
 echo "安装库文件..."
-sudo cp -r "$SCRIPT_DIR/SqzTool/SqzLib"/* "$LIB_DIR/" 2>/dev/null || true
+sudo cp -r "$SCRIPT_DIR/Sqz/SqzLib"/* "$LIB_INSTALL_DIR/" 2>/dev/null || true
 
-sudo cp "$SCRIPT_DIR/sqztool.prf" "$INSTALL_DIR/"
-
-echo "配置 Qt feature (CONFIG += sqztool) ..."
-
-find_all_qmake() {
-    if command -v qmake &>/dev/null; then
-        which qmake
-    fi
-    for prefix in "$HOME/Qt" "/opt/Qt" "/usr/local/Qt" "/usr/lib/qt" "/usr/lib/qt5" "/usr"; do
-        if [ -d "$prefix" ]; then
-            find "$prefix" -type f -name "qmake" -perm /111 2>/dev/null | head -5
-        fi
-    done
-    if command -v locate &>/dev/null; then
-        locate qmake 2>/dev/null | grep -E "/(bin|gcc_64/bin)/qmake$" | head -3
-    fi
-}
-
-get_features_dir() {
-    local qmake_path="$1"
-    local features_dir=""
-    local qt_data=$("$qmake_path" -query QT_INSTALL_DATA 2>/dev/null)
-    if [ -n "$qt_data" ] && [ -d "$qt_data/mkspecs/features" ]; then
-        features_dir="$qt_data/mkspecs/features"
-    fi
-    if [ -z "$features_dir" ]; then
-        local qmake_bin_dir=$(dirname "$qmake_path")
-        local parent_dir=$(dirname "$qmake_bin_dir")
-        if [ -d "$parent_dir/mkspecs/features" ]; then
-            features_dir="$parent_dir/mkspecs/features"
-        fi
-    fi
-    if [ -z "$features_dir" ]; then
-        local qt_prefix=$("$qmake_path" -query QT_INSTALL_PREFIX 2>/dev/null)
-        if [ -n "$qt_prefix" ] && [ -d "$qt_prefix/mkspecs/features" ]; then
-            features_dir="$qt_prefix/mkspecs/features"
-        fi
-    fi
-    echo "$features_dir"
-}
-
-declare -A features_map
-for qmake_path in $(find_all_qmake | sort -u); do
-    if [ -x "$qmake_path" ]; then
-        feat_dir=$(get_features_dir "$qmake_path")
-        if [ -n "$feat_dir" ] && [ -d "$feat_dir" ]; then
-            features_map["$feat_dir"]="$qmake_path"
-        fi
-    fi
-done
-
-if [ -n "$QT_FEATURES_DIR" ] && [ -d "$QT_FEATURES_DIR" ]; then
-    features_map["$QT_FEATURES_DIR"]="user_specified"
-fi
-
-if [ ${#features_map[@]} -eq 0 ]; then
-    for try_dir in "/usr/lib/x86_64-linux-gnu/qt5/mkspecs/features" \
-                   "/usr/lib64/qt5/mkspecs/features" \
-                   "/usr/share/qt5/mkspecs/features" \
-                   "/usr/lib/qt5/mkspecs/features" \
-                   "/usr/local/share/qt5/mkspecs/features"; do
-        if [ -d "$try_dir" ]; then
-            features_map["$try_dir"]="system_guess"
-            break
-        fi
-    done
-fi
-
-INSTALLED_COUNT=0
-for feat_dir in "${!features_map[@]}"; do
-    echo "找到 features 目录: $feat_dir"
-    if sudo cp "$SCRIPT_DIR/sqztool.prf" "$feat_dir/"; then
-        echo "✓ 已安装 sqztool.prf 到 $feat_dir"
-        ((INSTALLED_COUNT++))
-    else
-        echo "警告: 复制到 $feat_dir 失败"
-    fi
-done
-
-if [ $INSTALLED_COUNT -gt 0 ]; then
-    echo "✅ Qt feature 配置成功！现在可以在 .pro 中使用 CONFIG += sqztool"
-else
-    echo "====================================================="
-    echo "❌ 未能自动找到 Qt features 目录，CONFIG += sqztool 将不可用"
-    echo "您可以手动将 $SCRIPT_DIR/sqztool.prf 复制到 Qt features 目录"
-    echo "或在 .pro 中写: include($INSTALL_DIR/sqztool.prf)"
-    echo "====================================================="
-fi
-
-echo "配置系统库路径..."
-echo "$LIB_DIR" | sudo tee /etc/ld.so.conf.d/sqztool.conf > /dev/null
+echo "配置系统库搜索路径..."
+echo "$LIB_INSTALL_DIR" | sudo tee /etc/ld.so.conf.d/sqz.conf > /dev/null
 sudo ldconfig
 
-if ! grep -q "SqzTool" ~/.bashrc 2>/dev/null; then
+# 添加到 ~/.bashrc（如果尚未添加）
+if ! grep -q "Sqz" ~/.bashrc 2>/dev/null; then
     echo "" >> ~/.bashrc
-    echo "# SqzTool" >> ~/.bashrc
-    echo "export LD_LIBRARY_PATH=$LIB_DIR:\$LD_LIBRARY_PATH" >> ~/.bashrc
+    echo "# Sqz" >> ~/.bashrc
+    echo "export LD_LIBRARY_PATH=$LIB_INSTALL_DIR:\$LD_LIBRARY_PATH" >> ~/.bashrc
     echo "已添加 LD_LIBRARY_PATH 到 ~/.bashrc"
 fi
 
-# 赋予 /opt/SqzTool 全部权限（所有用户可读、写、执行）
-echo "赋予 $INSTALL_DIR 全部权限..."
-sudo chmod -R 777 "$INSTALL_DIR"
+# 设置目录权限（所有用户可读可执行，但不可写）
+echo "设置目录权限..."
+sudo chmod -R 755 "$HEADER_INSTALL_DIR" "$LIB_INSTALL_DIR"
 
 echo "=========================================="
 echo "安装完成！"
-echo "头文件: $INCLUDE_DIR"
-echo "库文件: $LIB_DIR"
-if [ $INSTALLED_COUNT -gt 0 ]; then
-    echo "✅ 使用方法：在 .pro 文件中写入  CONFIG += sqztool"
-else
-    echo "⚠️  使用方法：在 .pro 文件中写入  include(/opt/SqzTool/sqztool.prf)"
-fi
+echo "头文件: $HEADER_INSTALL_DIR"
+echo "库文件: $LIB_INSTALL_DIR"
+echo "使用方式：在 .pro 文件中添加"
+echo "  INCLUDEPATH += /usr/include/Sqz"
+echo "  LIBS += -L/usr/lib/Sqz -lSqz"
 echo "=========================================="
 EOF
 
 chmod +x "$WORK_DIR/install.sh"
 
-# 6. 打包
+# 4. 打包
 echo "创建 tar.gz..."
 cd "$WORK_DIR"
-tar -czf "$TAR_FILE" SqzTool/ install.sh sqztool.prf
+tar -czf "$TAR_FILE" Sqz/ install.sh
 
 echo "创建 .run 自解压包..."
 cat > "$RUN_FILE" << 'EOF'
@@ -249,17 +143,17 @@ else
     echo "错误: install.sh 不存在"
     exit 1
 fi
-rm -rf SqzTool/ install.sh sqztool.prf
+rm -rf Sqz/ install.sh
 exit 0
 __ARCHIVE_BELOW__
 EOF
 cat "$TAR_FILE" >> "$RUN_FILE"
 chmod +x "$RUN_FILE"
 
-# 7. 清理
+# 5. 清理
 rm -rf "$WORK_DIR"
 
-# 8. 同步
+# 6. 同步
 sync
 
 echo "========== 打包完成 =========="

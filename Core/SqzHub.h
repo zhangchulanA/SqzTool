@@ -39,7 +39,7 @@ using CreatorWithArg = std::function<void*(const QVariantList& args)>;
 /**
  * @brief 通用单例工厂，通过类名字符串创建/管理 QWidget、QObject、QML 对象。
  *        支持线程前缀隔离，读写锁保证线程安全。
- *  pro : DEFINES += MODULE_PREFIX=\\\"SqzTool\\\"
+ *  pro : DEFINES += MODULE_PREFIX=\\\"Sqz\\\"
  */
 class SqzHub : public SqzProp
 {
